@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { parse } from 'path';
 import type { FFmpegStreamsJson, Streams } from '@/types/video';
 
 export class FFmpegHelper {
@@ -18,10 +19,8 @@ export class FFmpegHelper {
     const ffprobe = spawn('ffprobe', [
       '-v',
       'error',
-      '-select_streams',
-      'v:0',
       '-show_entries',
-      'stream=width,height,color_primaries,r_frame_rate,codec_name,duration',
+      'stream=width,height,color_primaries,r_frame_rate,codec_name,codec_type,duration:format=format_name',
       '-of',
       'json',
       this.filePath
@@ -46,7 +45,8 @@ export class FFmpegHelper {
             throw 'streams not found';
           }
           const json = JSON.parse(stdoutChunks) as FFmpegStreamsJson;
-          const streams = json?.streams?.[0];
+          const streams = json?.streams?.find((stream) => stream.codec_type === 'video');
+          const audioStream = json?.streams?.find((stream) => stream.codec_type === 'audio');
 
           if (!streams) {
             throw 'streams not found';
@@ -55,6 +55,8 @@ export class FFmpegHelper {
           const [total, duration] = streams?.r_frame_rate?.split?.('/') || [];
           resolve({
             codecName: streams.codec_name,
+            audioCodecName: audioStream?.codec_name,
+            containerName: json.format?.format_name,
             width: streams.width,
             height: streams.height,
             colorPrimaries: streams.color_primaries,
@@ -65,6 +67,55 @@ export class FFmpegHelper {
         } catch (e) {
           reject('streams not found');
         }
+      });
+    });
+  }
+
+  async transcodeForSafari(outputPath?: string) {
+    const parsedPath = parse(this.filePath);
+    const nextOutputPath = outputPath || `${parsedPath.dir}/${parsedPath.name} [Safari].mp4`;
+
+    return new Promise((resolve: (filePath: string) => void, reject: (message: string) => void) => {
+      const ffmpeg = spawn('ffmpeg', [
+        '-y',
+        '-loglevel',
+        'repeat+info',
+        '-i',
+        this.filePath,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a?',
+        '-dn',
+        '-ignore_unknown',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '20',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '160k',
+        '-movflags',
+        '+faststart',
+        nextOutputPath
+      ]);
+
+      let stderr = '';
+      ffmpeg.stderr.setEncoding('utf-8');
+      ffmpeg.stderr.on('data', (data) => {
+        stderr += data?.trim?.() || '';
+      });
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve(nextOutputPath);
+          return;
+        }
+        reject(stderr || 'Failed to transcode video for Safari');
       });
     });
   }

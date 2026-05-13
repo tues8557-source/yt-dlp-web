@@ -91,6 +91,10 @@ export interface VideoInfo {
     name: string | null;
     size?: number;
   };
+  files?: {
+    original?: VideoFileVariant;
+    safari?: VideoFileVariant;
+  };
   playlistDirPath?: string;
   playlist: Array<
     Streams & {
@@ -133,8 +137,18 @@ export interface Streams {
   rFrameRate?: number;
   colorPrimaries?: string;
   codecName?: string;
+  audioCodecName?: string;
+  containerName?: string;
   duration?: string;
 }
+
+export type VideoFileVariant = Streams & {
+  path: string | null;
+  name: string | null;
+  size?: number;
+  source?: 'original' | 'safari';
+  aliasOf?: 'original';
+};
 
 export interface FFmpegStreamsJson {
   programs: any[];
@@ -144,8 +158,12 @@ export interface FFmpegStreamsJson {
     r_frame_rate: string;
     color_primaries: string;
     codec_name: string;
+    codec_type: string;
     duration: string;
   }[];
+  format?: {
+    format_name?: string;
+  };
 }
 
 export type PlaylistMetadata = {

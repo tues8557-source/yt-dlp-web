@@ -14,6 +14,7 @@ import type {
 import { randomUUID } from 'crypto';
 import { isDevelopment, qualityToYtDlpCmdOptions } from '@/lib/utils';
 import { COOKIES_FILE, DOWNLOAD_PATH } from '@/server/constants';
+import { parse } from 'path';
 
 const downloadProgressRegex =
   /^\[download\]\s+([0-9.]+%)\s+of[ ~]+([0-9.a-zA-Z/]+)\s+at\s+([0-9a-zA-Z./ ]+)\s+ETA\s+([0-9a-zA-Z./: ]+)/im;
@@ -90,6 +91,7 @@ export class YtDlpHelper {
       name: null,
       path: null
     },
+    files: {},
     playlist: [],
     download: {
       pid: null,
@@ -210,8 +212,6 @@ export class YtDlpHelper {
       // `thumbnail:${CACHE_PATH}/thumbnails/${CACHE_FILE_PREFIX}${uuid}.%(ext)s`,
       // '--print',
       // 'after_move:filepath',
-      '--merge-output-format',
-      'mp4',
       '-P',
       DOWNLOAD_PATH
     ];
@@ -536,6 +536,142 @@ export class YtDlpHelper {
     return this.isFormatExist;
   }
 
+  private isSafariCompatibleFile(file?: VideoInfo['file']) {
+    if (!file?.path) return false;
+
+    const isMp4File = /\.mp4$/i.test(file.path);
+    const containerName = file.containerName || '';
+    const isMp4Container =
+      isMp4File || containerName.split(',').some((container) => container.trim() === 'mp4');
+    const isH264 = ['h264', 'avc1'].includes(file.codecName || '');
+    const hasSafariAudio =
+      !file.audioCodecName || ['aac', 'alac', 'mp3'].includes(file.audioCodecName);
+
+    return isMp4Container && isH264 && hasSafariAudio;
+  }
+
+  private async updateVideoFileVariants(uuid: string, file: VideoInfo['file']) {
+    this.videoInfo.files = this.videoInfo.files || {};
+    this.videoInfo.files.original = {
+      ...file,
+      source: 'original'
+    };
+
+    if (this.isSafariCompatibleFile(file)) {
+      this.videoInfo.files.safari = {
+        ...file,
+        source: 'safari',
+        aliasOf: 'original'
+      };
+      await CacheHelper.set(uuid, this.videoInfo);
+      return;
+    }
+
+    this.videoInfo.files.safari = undefined;
+    this.videoInfo.status = 'merging';
+    this.videoInfo.updatedAt = Date.now();
+    await CacheHelper.set(uuid, this.videoInfo);
+
+    const safariFilePath =
+      (await this.downloadSafariCompatibleFile(file.path).catch(() => null)) ||
+      (await new FFmpegHelper({ filePath: file.path! }).transcodeForSafari().catch(() => null));
+
+    if (!safariFilePath) {
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+      return;
+    }
+
+    try {
+      const stat = await fs.stat(safariFilePath);
+      const streams = await new FFmpegHelper({ filePath: safariFilePath }).getVideoStreams();
+      this.videoInfo.files.safari = {
+        path: safariFilePath,
+        name: safariFilePath.replace(DOWNLOAD_PATH + '/', ''),
+        size: stat.size,
+        ...streams,
+        source: 'safari'
+      };
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+    } catch (e) {
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+    }
+  }
+
+  private async downloadSafariCompatibleFile(originalFilePath?: string | null) {
+    if (!originalFilePath) {
+      throw 'original file path is not found';
+    }
+
+    const parsedPath = parse(originalFilePath);
+    const outputTemplate = `${parsedPath.dir}/${parsedPath.name} [Safari].%(ext)s`;
+    const options = [
+      '--verbose',
+      '--no-continue',
+      '--windows-filenames',
+      '--no-playlist',
+      '--merge-output-format',
+      'mp4',
+      '--print',
+      'after_move:filepath',
+      '-f',
+      'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4][vcodec^=avc1]/best[ext=mp4]',
+      '-o',
+      outputTemplate
+    ];
+
+    if (this.videoInfo?.usingCookies) {
+      options.push('--cookies', getCacheFilePath(COOKIES_FILE, 'txt'));
+    }
+    if (
+      this.videoInfo?.enableProxy &&
+      typeof this.videoInfo?.proxyAddress === 'string' &&
+      this.videoInfo?.proxyAddress
+    ) {
+      options.push('--proxy', this.videoInfo.proxyAddress);
+    }
+
+    options.push(this.url);
+
+    return new Promise((resolve: (filePath: string) => void, reject: (message: string) => void) => {
+      const ytdlp = spawn('yt-dlp', options, {
+        killSignal: 'SIGINT',
+        cwd: DOWNLOAD_PATH
+      });
+      let outputFilePath = '';
+      let errorMessage = '';
+
+      const listener = (data: string) => {
+        const message = data?.trim?.();
+        if (!message) return;
+
+        if (message.startsWith('ERROR: ')) {
+          errorMessage = message?.split('\n')?.[0] || message;
+          return;
+        }
+
+        outputFilePath =
+          streamFilePathRegex.exec(message)?.[1] ||
+          filePathRegex.exec(message)?.[1] ||
+          outputFilePath;
+      };
+
+      ytdlp.stdout.setEncoding('utf-8');
+      ytdlp.stderr.setEncoding('utf-8');
+      ytdlp.stdout.on('data', listener);
+      ytdlp.stderr.on('data', listener);
+      ytdlp.on('close', (code) => {
+        if (code === 0 && outputFilePath) {
+          resolve(outputFilePath);
+          return;
+        }
+        reject(errorMessage || 'Failed to download Safari compatible format');
+      });
+    });
+  }
+
   private async downloadVideo({
     uuid,
     downloadStartCallback,
@@ -843,6 +979,7 @@ export class YtDlpHelper {
             ...streams
           };
         } catch (error) {}
+        await this.updateVideoFileVariants(uuid, videoInfo.file);
         videoInfo.updatedAt = Date.now();
         await CacheHelper.set(uuid, videoInfo);
       }
@@ -868,6 +1005,7 @@ export class YtDlpHelper {
               ...videoInfo.file,
               ...streams
             };
+            await this.updateVideoFileVariants(uuid, videoInfo.file);
           }
         } catch (e) {}
       }

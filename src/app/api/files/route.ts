@@ -44,6 +44,10 @@ export async function DELETE(request: Request) {
                 if (videoInfo.file.path) {
                   await fs.unlink(videoInfo.file.path);
                 }
+                const safariPath = videoInfo.files?.safari?.path;
+                if (safariPath && safariPath !== videoInfo.file.path) {
+                  await fs.unlink(safariPath).catch(() => {});
+                }
                 break;
               }
               case 'playlist': {
