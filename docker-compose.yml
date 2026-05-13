@@ -1,7 +1,6 @@
-version: "3"
-
 services:
   yt-dlp-web:
+    build: .
     image: sooros5132/yt-dlp-web
     container_name: yt-dlp-web
     user: 1000:1000
@@ -10,6 +9,7 @@ services:
     #   AUTH_SECRET: "Random_string,_40+_characters_recommended"
     #   CREDENTIAL_USERNAME: "username"
     #   CREDENTIAL_PASSWORD: "password"
+    #   YT_DLP_DOWNLOAD_URL: "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     volumes:
       - ~/Desktop/downloads:/downloads
       - ~/Desktop/cache:/cache
