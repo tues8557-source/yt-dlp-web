@@ -149,7 +149,10 @@ const DownloadForm = memo(({ onSubmit }: DownloadFormProps) => {
           <FileNameOption />
           <CutVideoOption />
           <EmbedSubtitlesOption />
+          <EmbedThumbnailOption />
           <EmbedChapterMarkersOption />
+          <EmbedMetadataOption />
+          <EmbedVideoThumbnailOption />
         </div>
       </Card>
       <LiveFromStartOption />
@@ -815,6 +818,99 @@ const EmbedChapterMarkersOption = () => {
         onClick={handleClickEmbedChaptersCheckbox}
       />
       <span className='text-sm'>Embed chapter markers</span>
+    </Label>
+  );
+};
+
+const EmbedThumbnailOption = () => {
+  const { hydrated, embedThumbnail, setEmbedThumbnail } = useDownloadFormStore(
+    ({ hydrated, embedThumbnail, setEmbedThumbnail }) => ({
+      hydrated,
+      embedThumbnail,
+      setEmbedThumbnail
+    }),
+    shallow
+  );
+  const isNotHydrated = !hydrated;
+
+  const handleClickEmbedThumbnailCheckbox = () => {
+    setEmbedThumbnail(!embedThumbnail);
+  };
+
+  return (
+    <Label
+      className='inline-flex items-center w-fit pl-1 gap-x-1 cursor-pointer'
+      title='Embed Thumbnail'
+    >
+      <Checkbox
+        name='embedThumbnail'
+        checked={embedThumbnail}
+        disabled={isNotHydrated}
+        onClick={handleClickEmbedThumbnailCheckbox}
+      />
+      <span className='text-sm'>Embed thumbnail</span>
+    </Label>
+  );
+};
+
+const EmbedMetadataOption = () => {
+  const { hydrated, embedMetadata, setEmbedMetadata } = useDownloadFormStore(
+    ({ hydrated, embedMetadata, setEmbedMetadata }) => ({
+      hydrated,
+      embedMetadata,
+      setEmbedMetadata
+    }),
+    shallow
+  );
+  const isNotHydrated = !hydrated;
+
+  const handleClickEmbedMetadataCheckbox = () => {
+    setEmbedMetadata(!embedMetadata);
+  };
+
+  return (
+    <Label
+      className='inline-flex items-center w-fit pl-1 gap-x-1 cursor-pointer'
+      title='Embed Metadata'
+    >
+      <Checkbox
+        name='embedMetadata'
+        checked={embedMetadata}
+        disabled={isNotHydrated}
+        onClick={handleClickEmbedMetadataCheckbox}
+      />
+      <span className='text-sm'>Embed metadata</span>
+    </Label>
+  );
+};
+
+const EmbedVideoThumbnailOption = () => {
+  const { hydrated, embedVideoThumbnail, setEmbedVideoThumbnail } = useDownloadFormStore(
+    ({ hydrated, embedVideoThumbnail, setEmbedVideoThumbnail }) => ({
+      hydrated,
+      embedVideoThumbnail,
+      setEmbedVideoThumbnail
+    }),
+    shallow
+  );
+  const isNotHydrated = !hydrated;
+
+  const handleClickEmbedVideoThumbnailCheckbox = () => {
+    setEmbedVideoThumbnail(!embedVideoThumbnail);
+  };
+
+  return (
+    <Label
+      className='inline-flex items-center w-fit pl-1 gap-x-1 cursor-pointer'
+      title='Embed Thumbnail in Video Files'
+    >
+      <Checkbox
+        name='embedVideoThumbnail'
+        checked={embedVideoThumbnail}
+        disabled={isNotHydrated}
+        onClick={handleClickEmbedVideoThumbnailCheckbox}
+      />
+      <span className='text-sm'>Embed thumbnail in video files</span>
     </Label>
   );
 };

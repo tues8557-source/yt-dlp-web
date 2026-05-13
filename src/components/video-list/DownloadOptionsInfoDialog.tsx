@@ -91,7 +91,16 @@ export function DownloadOptionsInfoDialog({
             <b>{video.embedSubs ? `${video.subLangs?.join?.(', ') || 'Yes'}` : 'No'}</b>
           </div>
           <div>
+            Embed thumbnail: <b>{video.embedThumbnail ? 'Yes' : 'No'}</b>
+          </div>
+          <div>
             Embed chapter markers: <b>{video.embedChapters ? 'Yes' : 'No'}</b>
+          </div>
+          <div>
+            Embed metadata: <b>{video.embedMetadata ? 'Yes' : 'No'}</b>
+          </div>
+          <div>
+            Embed thumbnail in video files: <b>{video.embedVideoThumbnail ? 'Yes' : 'No'}</b>
           </div>
           <div>
             Download livestreams from the start: <b>{video.enableLiveFromStart ? 'Yes' : 'No'}</b>

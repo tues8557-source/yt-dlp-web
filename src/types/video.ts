@@ -71,8 +71,10 @@ export interface VideoInfo {
   audioId?: string;
   format: string;
   usingCookies: boolean;
+  embedThumbnail: boolean;
   embedChapters: boolean;
-  // embedMetadata: boolean;
+  embedMetadata: boolean;
+  embedVideoThumbnail: boolean;
   embedSubs: boolean;
   subLangs: Array<string>;
   enableProxy: boolean;

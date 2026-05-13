@@ -13,8 +13,10 @@ interface State {
   format: string;
   enableDownloadNow: boolean;
   usingCookies: boolean;
-  // embedMetadata: boolean;
+  embedThumbnail: boolean;
   embedChapters: boolean;
+  embedMetadata: boolean;
+  embedVideoThumbnail: boolean;
   embedSubs: boolean;
   enableProxy: boolean;
   proxyAddress: string;
@@ -39,9 +41,12 @@ interface Store extends State {
   getMetadata: () => Promise<AxiosResponse<VideoMetadata>>;
   getSubtitles: () => Promise<AxiosResponse<VideoMetadata['subtitles']>>;
   setUsingCookies: (usingCookies: boolean) => void;
+  setEmbedThumbnail: (embedThumbnail: boolean) => void;
   setEmbedSubs: (embedSubs: boolean) => void;
   setSubLangs: (subLangs: State['subLangs']) => void;
   setEmbedChapters: (embedChapters: boolean) => void;
+  setEmbedMetadata: (embedMetadata: boolean) => void;
+  setEmbedVideoThumbnail: (embedVideoThumbnail: boolean) => void;
   setEnableProxy: (enableProxy: boolean) => void;
   setProxyAddress: (proxyAddress: string) => void;
   setEnableLiveFromStart: (enableLiveFromStart: boolean) => void;
@@ -59,8 +64,12 @@ export type DownloadRequestParams = {
   url: string;
   videoId?: string;
   audioId?: string;
+  embedThumbnail?: boolean;
   embedSubs?: boolean;
   subLangs?: string[];
+  embedChapters?: boolean;
+  embedMetadata?: boolean;
+  embedVideoThumbnail?: boolean;
 };
 
 const initialState: State = {
@@ -70,7 +79,10 @@ const initialState: State = {
   format: '',
   enableDownloadNow: true,
   usingCookies: false,
+  embedThumbnail: false,
   embedChapters: false,
+  embedMetadata: false,
+  embedVideoThumbnail: false,
   embedSubs: false,
   enableProxy: false,
   proxyAddress: '',
@@ -95,8 +107,10 @@ export const useDownloadFormStore = createWithEqualityFn(
         const {
           url,
           usingCookies,
+          embedThumbnail,
           embedChapters,
-          // embedMetadata,
+          embedMetadata,
+          embedVideoThumbnail,
           embedSubs,
           enableProxy,
           proxyAddress,
@@ -119,7 +133,10 @@ export const useDownloadFormStore = createWithEqualityFn(
           ...defaultPrams,
           url: defaultPrams?.url || url,
           usingCookies,
+          embedThumbnail,
           embedChapters,
+          embedMetadata,
+          embedVideoThumbnail,
           enableLiveFromStart,
           enableForceKeyFramesAtCuts
         };
@@ -219,8 +236,17 @@ export const useDownloadFormStore = createWithEqualityFn(
       setUsingCookies(usingCookies) {
         set({ usingCookies });
       },
+      setEmbedThumbnail(embedThumbnail) {
+        set({ embedThumbnail });
+      },
       setEmbedChapters(embedChapters) {
         set({ embedChapters });
+      },
+      setEmbedMetadata(embedMetadata) {
+        set({ embedMetadata });
+      },
+      setEmbedVideoThumbnail(embedVideoThumbnail) {
+        set({ embedVideoThumbnail });
       },
       setEmbedSubs(embedSubs) {
         set({ embedSubs });
@@ -275,9 +301,12 @@ export const useDownloadFormStore = createWithEqualityFn(
           cutEndTime: video.cutEndTime ?? initialState.cutEndTime,
           enableForceKeyFramesAtCuts:
             video.enableForceKeyFramesAtCuts ?? initialState.enableForceKeyFramesAtCuts,
+          embedThumbnail: video.embedThumbnail ?? initialState.embedThumbnail,
           embedSubs: video.embedSubs ?? initialState.embedSubs,
           subLangs: video.subLangs ?? initialState.subLangs,
           embedChapters: video.embedChapters ?? initialState.embedChapters,
+          embedMetadata: video.embedMetadata ?? initialState.embedMetadata,
+          embedVideoThumbnail: video.embedVideoThumbnail ?? initialState.embedVideoThumbnail,
           enableLiveFromStart: video.enableLiveFromStart ?? initialState.enableLiveFromStart,
           enableProxy: video.enableProxy ?? initialState.enableProxy,
           proxyAddress: video.enableProxy
@@ -297,7 +326,10 @@ export const useDownloadFormStore = createWithEqualityFn(
         const keys = [
           'enableDownloadNow',
           'usingCookies',
+          'embedThumbnail',
           'embedChapters',
+          'embedMetadata',
+          'embedVideoThumbnail',
           'embedSubs',
           'subLangs',
           'enableProxy',

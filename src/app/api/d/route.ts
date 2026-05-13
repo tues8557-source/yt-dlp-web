@@ -16,8 +16,10 @@ export async function GET(request: Request) {
   const searchParams = urlObject.searchParams;
   const url = searchParams.get('url')?.trim?.();
   const usingCookies = searchParams.get('usingCookies') === 'true';
+  const embedThumbnail = searchParams.get('embedThumbnail') === 'true';
   const embedChapters = searchParams.get('embedChapters') === 'true';
-  // const embedMetadata = searchParams.get('embedMetadata') === 'true';
+  const embedMetadata = searchParams.get('embedMetadata') === 'true';
+  const embedVideoThumbnail = searchParams.get('embedVideoThumbnail') === 'true';
   const embedSubs = searchParams.get('embedSubs') === 'true';
   const subLangs = searchParams.getAll('subLangs[]') || searchParams.getAll('subLangs');
   const enableProxy = searchParams.get('enableProxy') === 'true';
@@ -76,8 +78,10 @@ export async function GET(request: Request) {
       format,
       uuid,
       usingCookies,
+      embedThumbnail,
       embedChapters,
-      // embedMetadata,
+      embedMetadata,
+      embedVideoThumbnail,
       embedSubs,
       subLangs,
       enableProxy,

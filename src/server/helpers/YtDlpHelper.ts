@@ -71,8 +71,10 @@ export class YtDlpHelper {
     audioId: '',
     format: 'bv+ba/b',
     usingCookies: false,
+    embedThumbnail: false,
     embedChapters: false,
-    // embedMetadata: false,
+    embedMetadata: false,
+    embedVideoThumbnail: false,
     embedSubs: false,
     subLangs: [],
     enableProxy: false,
@@ -111,8 +113,10 @@ export class YtDlpHelper {
     format?: string;
     pid?: number;
     usingCookies: boolean;
+    embedThumbnail?: boolean;
     embedChapters?: boolean;
-    // embedMetadata?: boolean;
+    embedMetadata?: boolean;
+    embedVideoThumbnail?: boolean;
     embedSubs?: boolean;
     subLangs?: Array<string>;
     enableProxy?: boolean;
@@ -133,7 +137,10 @@ export class YtDlpHelper {
     this.videoInfo.audioId = querys.audioId;
     this.videoInfo.format = querys.format || 'bv+ba/b';
     this.videoInfo.usingCookies = querys.usingCookies;
+    this.videoInfo.embedThumbnail = querys.embedThumbnail || false;
     this.videoInfo.embedChapters = querys.embedChapters || false;
+    this.videoInfo.embedMetadata = querys.embedMetadata || false;
+    this.videoInfo.embedVideoThumbnail = querys.embedVideoThumbnail || false;
     this.videoInfo.embedSubs = querys.embedSubs || false;
     this.videoInfo.subLangs = querys.subLangs || [];
     this.videoInfo.enableProxy = querys.enableProxy || false;
@@ -254,8 +261,14 @@ export class YtDlpHelper {
             options.push('--live-from-start');
           }
         } else {
+          if (this.videoInfo?.embedThumbnail || this.videoInfo?.embedVideoThumbnail) {
+            options.push('--embed-thumbnail', '--convert-thumbnails', 'png');
+          }
           if (this.videoInfo?.embedChapters) {
             options.push('--embed-chapters');
+          }
+          if (this.videoInfo?.embedMetadata) {
+            options.push('--embed-metadata');
           }
           if (this.videoInfo?.embedSubs || this.videoInfo.subLangs.length > 0) {
             if (this.videoInfo.subLangs.length === 0 || this.videoInfo.subLangs.includes('all')) {
