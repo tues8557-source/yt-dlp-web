@@ -1,7 +1,6 @@
 services:
   yt-dlp-web:
-    build: .
-    image: sooros5132/yt-dlp-web
+    image: ghcr.io/tues8557-source/yt-dlp-web:latest
     container_name: yt-dlp-web
     user: 1000:1000
     # environment:
