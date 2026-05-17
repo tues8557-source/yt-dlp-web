@@ -64,9 +64,14 @@ export async function middleware(request: NextRequest) {
 
     if (request.nextUrl.pathname.startsWith('/api')) {
       const fn = match('/api/*paths')(request.nextUrl.pathname);
-      const apiPath = Array.isArray(fn?.params?.paths) ? fn.params.paths?.[0] : undefined;
 
-      if (fn && apiPath && !publicApiPaths.has(apiPath)) {
+      if (!fn) {
+        return NextResponse.next();
+      }
+
+      const apiPath = Array.isArray(fn.params.paths) ? fn.params.paths?.[0] : undefined;
+
+      if (apiPath && !publicApiPaths.has(apiPath)) {
         if ((await getSession()) || isValidApiTokenRequest(request, apiPath)) {
           return NextResponse.next();
         }
