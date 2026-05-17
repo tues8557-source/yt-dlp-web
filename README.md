@@ -57,6 +57,23 @@ docker exec -u 0 -it yt-dlp-web /usr/local/bin/yt-dlp --update-to stable@<releas
 # ex) docker exec -u 0 -it yt-dlp-web /usr/local/bin/yt-dlp --update-to stable@2024.08.06
 ```
 
+# Automation download API
+If authentication is enabled, set `API_TOKEN` to allow trusted automation to start downloads without loading the web page.
+
+```YML
+environment:
+  AUTH_SECRET: "Random_string,_40+_characters_recommended"
+  CREDENTIAL_USERNAME: "username"
+  CREDENTIAL_PASSWORD: "password"
+  API_TOKEN: "Random_string_for_automation_download_api"
+```
+
+```BASH
+curl \
+  -H "Authorization: Bearer $API_TOKEN" \
+  "https://your-domain.example/api/d?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DVIDEO_ID"
+```
+
 # iOS Shortcut
 You can open yt-dlp-web in the app's share with a shortcut.<br/>Before using it, please enter the domain where yt-dlp-web is deployed in the text box in the shortcut's settings below.
 [https://www.icloud.com/shortcuts/8b038411c518474bbfe566f9fbe1e046](https://www.icloud.com/shortcuts/8b038411c518474bbfe566f9fbe1e046)

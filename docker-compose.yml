@@ -9,6 +9,7 @@ services:
     #   AUTH_SECRET: "Random_string,_40+_characters_recommended"
     #   CREDENTIAL_USERNAME: "username"
     #   CREDENTIAL_PASSWORD: "password"
+    #   API_TOKEN: "Random_string_for_automation_download_api"
     #   YT_DLP_DOWNLOAD_URL: "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     volumes:
       - ~/Desktop/downloads:/downloads
