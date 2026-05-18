@@ -100,7 +100,8 @@ export function DownloadOptionsInfoDialog({
             Embed metadata: <b>{video.embedMetadata ? 'Yes' : 'No'}</b>
           </div>
           <div>
-            Embed thumbnail in video files: <b>{video.embedVideoThumbnail ? 'Yes' : 'No'}</b>
+            Set the thumbnail as the 1st frame of the video:{' '}
+            <b>{video.embedVideoThumbnail ? 'Yes' : 'No'}</b>
           </div>
           <div>
             Download livestreams from the start: <b>{video.enableLiveFromStart ? 'Yes' : 'No'}</b>

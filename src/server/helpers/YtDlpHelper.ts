@@ -261,7 +261,7 @@ export class YtDlpHelper {
             options.push('--live-from-start');
           }
         } else {
-          if (this.videoInfo?.embedThumbnail || this.videoInfo?.embedVideoThumbnail) {
+          if (this.videoInfo?.embedThumbnail) {
             options.push('--embed-thumbnail', '--convert-thumbnails', 'png');
           }
           if (this.videoInfo?.embedChapters) {
@@ -550,19 +550,53 @@ export class YtDlpHelper {
     return isMp4Container && isH264 && hasSafariAudio;
   }
 
+  private async setThumbnailAsFirstFrame(uuid: string, file: VideoInfo['file']) {
+    if (!this.videoInfo.embedVideoThumbnail || !file.path || !this.videoInfo.thumbnail) {
+      return file;
+    }
+
+    this.videoInfo.status = 'merging';
+    this.videoInfo.updatedAt = Date.now();
+    await CacheHelper.set(uuid, this.videoInfo);
+
+    try {
+      await new FFmpegHelper({ filePath: file.path }).setThumbnailAsFirstFrame(
+        this.videoInfo.thumbnail
+      );
+      const stat = await fs.stat(file.path);
+      const streams = await new FFmpegHelper({ filePath: file.path }).getVideoStreams();
+
+      return {
+        ...file,
+        ...streams,
+        size: stat.size
+      };
+    } catch (error) {
+      console.warn(
+        `[${new Date().toISOString()}] [ffmpeg] Failed to set thumbnail as first frame:`,
+        error
+      );
+      return file;
+    }
+  }
+
   private async updateVideoFileVariants(uuid: string, file: VideoInfo['file']) {
+    const originalFile = await this.setThumbnailAsFirstFrame(uuid, file);
+
     this.videoInfo.files = this.videoInfo.files || {};
     this.videoInfo.files.original = {
-      ...file,
+      ...originalFile,
       source: 'original'
     };
 
-    if (this.isSafariCompatibleFile(file)) {
+    if (this.isSafariCompatibleFile(originalFile)) {
       this.videoInfo.files.safari = {
-        ...file,
+        ...originalFile,
         source: 'safari',
         aliasOf: 'original'
       };
+      this.videoInfo.file = originalFile;
+      this.videoInfo.status = 'completed';
       await CacheHelper.set(uuid, this.videoInfo);
       return;
     }
@@ -583,18 +617,23 @@ export class YtDlpHelper {
     }
 
     try {
+      const safariFile = await this.setThumbnailAsFirstFrame(uuid, {
+        path: safariFilePath,
+        name: safariFilePath.replace(DOWNLOAD_PATH + '/', '')
+      });
       const stat = await fs.stat(safariFilePath);
-      const streams = await new FFmpegHelper({ filePath: safariFilePath }).getVideoStreams();
       this.videoInfo.files.safari = {
+        ...safariFile,
         path: safariFilePath,
         name: safariFilePath.replace(DOWNLOAD_PATH + '/', ''),
         size: stat.size,
-        ...streams,
         source: 'safari'
       };
+      this.videoInfo.file = originalFile;
       this.videoInfo.status = 'completed';
       await CacheHelper.set(uuid, this.videoInfo);
     } catch (e) {
+      this.videoInfo.file = originalFile;
       this.videoInfo.status = 'completed';
       await CacheHelper.set(uuid, this.videoInfo);
     }
