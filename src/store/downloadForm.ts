@@ -82,7 +82,7 @@ const initialState: State = {
   embedThumbnail: true,
   embedChapters: true,
   embedMetadata: true,
-  embedVideoThumbnail: true,
+  embedVideoThumbnail: false,
   embedSubs: false,
   enableProxy: false,
   proxyAddress: '',

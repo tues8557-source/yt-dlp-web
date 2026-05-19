@@ -100,7 +100,7 @@ export function DownloadOptionsInfoDialog({
             Embed metadata: <b>{video.embedMetadata ? 'Yes' : 'No'}</b>
           </div>
           <div>
-            Set the thumbnail as the 1st frame of the video:{' '}
+            Set the thumbnail as the 1st frame (slow):{' '}
             <b>{video.embedVideoThumbnail ? 'Yes' : 'No'}</b>
           </div>
           <div>

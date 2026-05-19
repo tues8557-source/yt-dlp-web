@@ -910,7 +910,7 @@ const EmbedVideoThumbnailOption = () => {
         disabled={isNotHydrated}
         onClick={handleClickEmbedVideoThumbnailCheckbox}
       />
-      <span className='text-sm'>Set the thumbnail as the 1st frame of the video</span>
+      <span className='text-sm'>Set the thumbnail as the 1st frame (slow)</span>
     </Label>
   );
 };
