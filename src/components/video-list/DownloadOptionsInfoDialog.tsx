@@ -40,6 +40,9 @@ export function DownloadOptionsInfoDialog({
   const [outputFilename, setOutputFilename] = useState(
     video.outputFilename || `${initialDownloadFormState.outputFilename}.%(ext)s`
   );
+  const [filenameLengthLimit, setFilenameLengthLimit] = useState(
+    String(video.filenameLengthLimit || initialDownloadFormState.filenameLengthLimit)
+  );
   const [usingCookies, setUsingCookies] = useState(video.usingCookies);
   const [embedThumbnail, setEmbedThumbnail] = useState(video.embedThumbnail);
   const [embedChapters, setEmbedChapters] = useState(video.embedChapters);
@@ -76,6 +79,7 @@ export function DownloadOptionsInfoDialog({
           uuid: video.uuid,
           selectQuality,
           outputFilename,
+          filenameLengthLimit,
           usingCookies,
           embedThumbnail,
           embedChapters,
@@ -235,6 +239,18 @@ export function DownloadOptionsInfoDialog({
                     value={outputFilename}
                     placeholder='%(title)s (%(id)s).%(ext)s'
                     onChange={(event) => setOutputFilename(event.target.value)}
+                  />
+                </Label>
+                <Label className='flex flex-col gap-y-1'>
+                  <span>Filename length limit</span>
+                  <Input
+                    type='number'
+                    min={0}
+                    max={255}
+                    step={1}
+                    value={filenameLengthLimit}
+                    placeholder='255'
+                    onChange={(event) => setFilenameLengthLimit(event.target.value)}
                   />
                 </Label>
                 <Label className='flex items-center gap-x-2'>

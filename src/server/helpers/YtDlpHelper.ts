@@ -39,6 +39,13 @@ const ffmpegProgressTrackingRegex =
   /^frame=([0-9 ]+)\s+fps=([0-9. ]+)\s+q=([-0-9. ]+)\s+(L?size)=([0-9a-zA-Z. ]+)\s+time=([0-9:. -]+)\s+bitrate=([0-9a-zA-Z./ ]+)\s+speed=([0-9a-zA-Z./ ]+)$/;
 const cutsTimeRegex = /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{2}$/;
 const MAX_FILENAME_LENGTH_BYTES = 255;
+const normalizeFilenameLengthLimit = (value?: number) => {
+  const limit = Number(value || MAX_FILENAME_LENGTH_BYTES);
+  if (Number.isNaN(limit)) {
+    return MAX_FILENAME_LENGTH_BYTES;
+  }
+  return Math.max(0, Math.min(Math.floor(limit), MAX_FILENAME_LENGTH_BYTES));
+};
 
 /**
  *
@@ -152,7 +159,7 @@ export class YtDlpHelper {
     this.videoInfo.proxyAddress = querys.proxyAddress || '';
     this.videoInfo.enableLiveFromStart = querys.enableLiveFromStart || false;
     this.videoInfo.outputFilename = querys.outputFilename || '';
-    this.videoInfo.filenameLengthLimit = MAX_FILENAME_LENGTH_BYTES;
+    this.videoInfo.filenameLengthLimit = normalizeFilenameLengthLimit(querys.filenameLengthLimit);
     this.videoInfo.selectQuality = querys.selectQuality || '';
     this.videoInfo.enableForceKeyFramesAtCuts = querys.enableForceKeyFramesAtCuts || false;
 

@@ -55,6 +55,9 @@ export async function GET(request: Request) {
   const cutEndTime = searchParams.has('cutEndTime')
     ? searchParams.get('cutEndTime') || ''
     : videoInfo?.cutEndTime || '';
+  const filenameLengthLimit = searchParams.has('filenameLengthLimit')
+    ? Number(searchParams.get('filenameLengthLimit') || 0)
+    : videoInfo?.filenameLengthLimit || 0;
 
   if (videoInfo?.download?.pid) {
     new ProcessHelper({ pid: videoInfo.download.pid }).kill();
@@ -100,7 +103,7 @@ export async function GET(request: Request) {
     cutStartTime,
     cutEndTime,
     outputFilename,
-    filenameLengthLimit: videoInfo?.filenameLengthLimit || 0,
+    filenameLengthLimit: Number.isNaN(filenameLengthLimit) ? 0 : filenameLengthLimit,
     selectQuality,
     enableForceKeyFramesAtCuts: getBooleanOverride(
       searchParams,
