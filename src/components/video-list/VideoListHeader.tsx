@@ -67,6 +67,12 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
   const [openDeleteAllFile, setOpenDeleteAllFile] = useState(false);
 
   const itemLength = orders?.length || 0;
+  const audioLength =
+    orders?.filter((uuid) => {
+      const item = items?.[uuid];
+      return item?.selectQuality === 'audio' || item?.format === 'ba';
+    }).length || 0;
+  const videoLength = itemLength - audioLength;
   const isAllSelected = itemLength && selectedUuids.size === itemLength;
 
   const handleCloseDeleteList = () => {
@@ -218,9 +224,15 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
       )}
     >
       <div className='w-full flex items-center gap-2'>
-        <h1 className='text-center text-lg font-bold whitespace-nowrap'>
-          {isSelectMode ? 'Select Mode' : `Videos(${itemLength})`}
-        </h1>
+        {isSelectMode ? (
+          <h1 className='text-center text-lg font-bold whitespace-nowrap'>Select Mode</h1>
+        ) : (
+          <div className='flex shrink-0 items-center gap-1.5 whitespace-nowrap text-lg font-bold'>
+            <span>Videos({videoLength})</span>
+            <span className='text-muted-foreground'>/</span>
+            <span>Audio({audioLength})</span>
+          </div>
+        )}
         <div className='flex items-center justify-between ml-auto rounded-full shadow-sm flex-auto'>
           <Input
             type='text'

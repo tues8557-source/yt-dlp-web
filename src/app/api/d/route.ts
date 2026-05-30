@@ -10,6 +10,7 @@ import {
 } from '@/server/helpers/PermissionHelper';
 
 export const dynamic = 'force-dynamic';
+const FILENAME_LENGTH_LIMIT_BYTES = 255;
 
 export async function GET(request: Request) {
   const urlObject = new URL(request.url);
@@ -29,7 +30,6 @@ export async function GET(request: Request) {
   const cutStartTime = searchParams.get('cutStartTime') || '';
   const cutEndTime = searchParams.get('cutEndTime') || '';
   const outputFilename = searchParams.get('outputFilename') || '';
-  const filenameLengthLimit = Number(searchParams.get('filenameLengthLimit') || 0);
   const selectQuality = (searchParams.get('selectQuality') || '') as SelectQuality;
   const enableForceKeyFramesAtCuts = searchParams.get('enableForceKeyFramesAtCuts') === 'true';
 
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       cutEndTime,
       proxyAddress: typeof proxyAddress === 'string' ? proxyAddress : '',
       outputFilename,
-      filenameLengthLimit: Number.isNaN(filenameLengthLimit) ? 0 : filenameLengthLimit,
+      filenameLengthLimit: FILENAME_LENGTH_LIMIT_BYTES,
       selectQuality: !videoId && !audioId ? selectQuality : '',
       enableForceKeyFramesAtCuts
     });

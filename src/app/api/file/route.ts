@@ -144,6 +144,7 @@ export async function DELETE(request: Request) {
     const searchParams = urlObject.searchParams;
     const uuid = searchParams.get('uuid');
     const deleteFile = searchParams.get('deleteFile') === 'true';
+    const deleteList = searchParams.get('deleteList') !== 'false';
     if (typeof uuid !== 'string') {
       throw 'Param `uuid` is only string type';
     }
@@ -173,7 +174,9 @@ export async function DELETE(request: Request) {
         process.kill();
       }
 
-      const newVideoList = videoList.filter((_uuid) => _uuid !== videoInfo.uuid);
+      const newVideoList = deleteList
+        ? videoList.filter((_uuid) => _uuid !== videoInfo.uuid)
+        : videoList;
       try {
         if (deleteFile && videoInfo.file.path) {
           await fs.unlink(videoInfo.file.path);
@@ -190,7 +193,28 @@ export async function DELETE(request: Request) {
           }
         }
       } catch (e) {}
-      await CacheHelper.delete(videoInfo.uuid);
+      if (deleteList) {
+        await CacheHelper.delete(videoInfo.uuid);
+      } else {
+        videoInfo.status = 'failed';
+        videoInfo.error = 'File deleted. Retry download to recreate it.';
+        videoInfo.file = {
+          ...videoInfo.file,
+          path: null,
+          name: null,
+          size: undefined
+        };
+        videoInfo.files = {};
+        videoInfo.localThumbnail = null;
+        videoInfo.download = {
+          ...videoInfo.download,
+          pid: null,
+          progress: null,
+          speed: null
+        };
+        videoInfo.updatedAt = Date.now();
+        await CacheHelper.set(videoInfo.uuid, videoInfo);
+      }
       await CacheHelper.set(VIDEO_LIST_FILE, newVideoList);
       return NextResponse.json({
         uuid: videoInfo.uuid,

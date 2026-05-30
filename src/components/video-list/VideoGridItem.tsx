@@ -95,7 +95,8 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
         .delete(deleteApiPath, {
           params: {
             uuid: video.uuid,
-            deleteFile
+            deleteFile,
+            deleteList: !deleteFile
           }
         })
         .then((res) => res.data)
@@ -103,7 +104,7 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
 
       if (result.success) {
         if (deleteFile) {
-          toast.success('Deleted list and file.');
+          toast.success('Deleted file. The item remains in the list.');
           handleCloseDeleteFile();
         } else {
           toast.success('Deleted from list. (File will be retained)');
@@ -506,15 +507,13 @@ encode speed ${video.download.ffmpeg.speed}`
                       size='sm'
                       borderCurrentColor
                       className='h-[1.7em] text-lg text-error-foreground hover:text-error-foreground/90'
-                      title='Delete from List and File'
+                      title='Delete file'
                     >
                       <MdOutlineVideocamOff />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='start' className='max-w-xs'>
-                    <DropdownMenuLabel className='text-md'>
-                      Remove from storage and list
-                    </DropdownMenuLabel>
+                    <DropdownMenuLabel className='text-md'>Remove file from storage</DropdownMenuLabel>
                     <DropdownMenuLabel className='flex items-center justify-end gap-x-2'>
                       <Button
                         variant='outline'
