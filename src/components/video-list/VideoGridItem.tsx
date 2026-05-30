@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { mutate } from 'swr';
+import useSWR, { mutate } from 'swr';
 import numeral from 'numeral';
 import { toast } from 'react-toastify';
 import { useVideoPlayerStore } from '@/store/videoPlayer';
@@ -12,9 +12,13 @@ import { AiOutlineCloudDownload, AiOutlineInfoCircle } from 'react-icons/ai';
 import { VscRefresh, VscWarning } from 'react-icons/vsc';
 import { MdOutlineVideocamOff, MdStop } from 'react-icons/md';
 import { CgPlayListSearch } from 'react-icons/cg';
+import { BsCollectionPlay } from 'react-icons/bs';
 import type { VideoInfo } from '@/types/video';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { LinkIcon } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -30,6 +34,7 @@ import { shallow } from 'zustand/shallow';
 import { TbPlaylistX } from 'react-icons/tb';
 import { PlaylistViewer } from './PlaylistViewer';
 import { DownloadOptionsInfoDialog } from './DownloadOptionsInfoDialog';
+import type { UserPlaylists } from '@/types/userPlaylist';
 
 export type VideoGridItemProps = {
   video: VideoInfo;
@@ -60,6 +65,12 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
 
   const [openDeleteList, setOpenDeleteList] = useState(false);
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
+  const [openUserPlaylists, setOpenUserPlaylists] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const { data: userPlaylists, mutate: mutateUserPlaylists } = useSWR<UserPlaylists>(
+    '/api/playlists',
+    async () => axios.get<UserPlaylists>('/api/playlists').then((res) => res.data)
+  );
 
   const handleCloseDeleteList = () => {
     setOpenDeleteList(false);
@@ -75,6 +86,51 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
 
   const handleChangeDeleteFile = (open: boolean) => {
     setOpenDeleteFile(open);
+  };
+
+  const selectedUserPlaylistIds =
+    userPlaylists?.orders.filter((playlistId) =>
+      userPlaylists.items[playlistId]?.uuids.includes(video.uuid)
+    ) || [];
+
+  const handleSubmitCreateUserPlaylist = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newPlaylistName.trim();
+    if (!name) return;
+
+    const result = await axios
+      .post('/api/playlists', { name, uuid: video.uuid })
+      .then((res) => res.data)
+      .catch((res) => res.response?.data);
+
+    if (result?.error) {
+      toast.error(result.error || 'Failed to create playlist.');
+      return;
+    }
+
+    setNewPlaylistName('');
+    mutateUserPlaylists(result, false);
+  };
+
+  const handleToggleUserPlaylist = (playlistId: string) => async () => {
+    const nextPlaylistIds = selectedUserPlaylistIds.includes(playlistId)
+      ? selectedUserPlaylistIds.filter((id) => id !== playlistId)
+      : [...selectedUserPlaylistIds, playlistId];
+
+    const result = await axios
+      .patch('/api/playlists', {
+        uuid: video.uuid,
+        playlistIds: nextPlaylistIds
+      })
+      .then((res) => res.data)
+      .catch((res) => res.response?.data);
+
+    if (result?.error) {
+      toast.error(result.error || 'Failed to update playlist.');
+      return;
+    }
+
+    mutateUserPlaylists(result, false);
   };
 
   const handleClickDelete =
@@ -602,14 +658,14 @@ encode speed ${video.download.ffmpeg.speed}`
                 video.type === 'playlist' ? (
                   <Button
                     size='sm'
-                    className='h-[1.7em] text-lg rounded-xl rounded-l-none'
+                    className='h-[1.7em] text-lg rounded-none'
                     disabled={isValidating}
                     onClick={handleClickOpenPlaylistButton}
                   >
                     <CgPlayListSearch />
                   </Button>
                 ) : (
-                  <Button size='sm' className='p-0 h-[1.7em] text-lg rounded-xl rounded-l-none'>
+                  <Button size='sm' className='p-0 h-[1.7em] text-lg rounded-none'>
                     <a
                       className='flex items-center w-full h-full px-3'
                       href={isCompleted ? `/api/file?uuid=${video.uuid}&download=true` : ''}
@@ -626,7 +682,7 @@ encode speed ${video.download.ffmpeg.speed}`
                 <div className={cn(recommendedDownloadRetry && 'animate-pulse')}>
                   <Button
                     size='sm'
-                    className={'h-[1.7em] text-lg rounded-xl rounded-l-none'}
+                    className={'h-[1.7em] text-lg rounded-none'}
                     disabled={isValidating || video?.isLive}
                     onClick={handleClickRestartDownload}
                     title={video?.isLive ? '' : 'Retry Download'}
@@ -639,6 +695,56 @@ encode speed ${video.download.ffmpeg.speed}`
                   </Button>
                 </div>
               )}
+              <DropdownMenu open={openUserPlaylists} onOpenChange={setOpenUserPlaylists}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size='sm'
+                    className='h-[1.7em] text-lg rounded-xl rounded-l-none'
+                    title='Add to playlists'
+                  >
+                    <BsCollectionPlay />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end' className='w-72'>
+                  <DropdownMenuLabel className='space-y-3'>
+                    <div className='font-semibold'>Playlists</div>
+                    <form className='flex gap-x-2' onSubmit={handleSubmitCreateUserPlaylist}>
+                      <Input
+                        className='h-8'
+                        value={newPlaylistName}
+                        placeholder='New playlist'
+                        onChange={(event) => setNewPlaylistName(event.target.value)}
+                      />
+                      <Button type='submit' size='sm' className='h-8'>
+                        Add
+                      </Button>
+                    </form>
+                    <div className='max-h-64 space-y-1 overflow-auto'>
+                      {userPlaylists?.orders.length ? (
+                        userPlaylists.orders.map((playlistId) => {
+                          const playlist = userPlaylists.items[playlistId];
+                          if (!playlist) return null;
+                          const checked = selectedUserPlaylistIds.includes(playlistId);
+                          return (
+                            <Label
+                              key={playlistId}
+                              className='flex cursor-pointer items-center gap-x-2 rounded-md px-2 py-1.5 hover:bg-accent'
+                            >
+                              <Checkbox checked={checked} onClick={handleToggleUserPlaylist(playlistId)} />
+                              <span className='min-w-0 flex-1 truncate'>{playlist.name}</span>
+                              <span className='text-xs text-muted-foreground'>
+                                {playlist.uuids.length}
+                              </span>
+                            </Label>
+                          );
+                        })
+                      ) : (
+                        <div className='py-2 text-sm text-muted-foreground'>No playlists yet.</div>
+                      )}
+                    </div>
+                  </DropdownMenuLabel>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

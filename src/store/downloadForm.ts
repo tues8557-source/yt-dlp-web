@@ -6,7 +6,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { shallow } from 'zustand/shallow';
 import { isDevelopment } from '@/lib/utils';
 
-const FILENAME_LENGTH_LIMIT_BYTES = 255;
+const FILENAME_LENGTH_LIMIT_CHARS = 80;
 
 interface State {
   hydrated: boolean;
@@ -95,7 +95,7 @@ const initialState: State = {
   cutEndTime: '',
   enableOutputFilename: true,
   outputFilename: '%(title)s (%(id)s)',
-  filenameLengthLimit: FILENAME_LENGTH_LIMIT_BYTES,
+  filenameLengthLimit: FILENAME_LENGTH_LIMIT_CHARS,
   selectQuality: 'best',
   enableForceKeyFramesAtCuts: false,
   subLangs: []
@@ -161,7 +161,7 @@ export const useDownloadFormStore = createWithEqualityFn(
         if (enableOutputFilename) {
           params.outputFilename = `${outputFilename}.%(ext)s`;
         }
-        params.filenameLengthLimit = FILENAME_LENGTH_LIMIT_BYTES;
+        params.filenameLengthLimit = FILENAME_LENGTH_LIMIT_CHARS;
         if (enableDownloadNow && !params.audioId && !params.videoId) {
           params.selectQuality = selectQuality;
         }

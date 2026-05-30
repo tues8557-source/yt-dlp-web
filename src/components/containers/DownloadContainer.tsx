@@ -697,7 +697,7 @@ const FileNameOption = () => {
   const handleClickFilenameInfo = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    toast.info('Filename length limit is 255 bytes.');
+    toast.info('yt-dlp trims the filename body to 80 characters by default, excluding extension.');
   };
 
   return (
@@ -718,8 +718,8 @@ const FileNameOption = () => {
         <button
           type='button'
           className='inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-          aria-label='Filename length limit is 255 bytes.'
-          title='Filename length limit is 255 bytes.'
+          aria-label='Filename trim length is 80 characters by default, excluding extension.'
+          title='Filename trim length is 80 characters by default, excluding extension.'
           onClick={handleClickFilenameInfo}
         >
           <Info className='h-3.5 w-3.5 text-muted-foreground' />

@@ -40,8 +40,10 @@ export type VideoListHeaderProps = {
   orders: VideoListProps['orders'];
   isValidating: boolean;
   search: string;
+  viewMode: 'default' | 'playlists';
   onClickReloadButton: () => void;
   setSearch: (search: string) => void;
+  setViewMode: (viewMode: 'default' | 'playlists') => void;
 };
 
 export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
@@ -49,7 +51,9 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
   orders,
   isValidating,
   search,
+  viewMode,
   setSearch,
+  setViewMode,
   onClickReloadButton
 }) => {
   const {
@@ -224,6 +228,26 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
       )}
     >
       <div className='w-full flex items-center gap-2'>
+        {!isSelectMode && (
+          <div className='flex shrink-0 overflow-hidden rounded-full border bg-background text-xs font-medium'>
+            <Button
+              type='button'
+              variant={viewMode === 'default' ? 'default' : 'ghost'}
+              className='h-8 rounded-none px-3'
+              onClick={() => setViewMode('default')}
+            >
+              Default
+            </Button>
+            <Button
+              type='button'
+              variant={viewMode === 'playlists' ? 'default' : 'ghost'}
+              className='h-8 rounded-none px-3'
+              onClick={() => setViewMode('playlists')}
+            >
+              Playlists
+            </Button>
+          </div>
+        )}
         {isSelectMode ? (
           <h1 className='text-center text-lg font-bold whitespace-nowrap'>Select Mode</h1>
         ) : (

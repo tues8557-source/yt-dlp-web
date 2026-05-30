@@ -38,13 +38,14 @@ const playlistFolderPrefix = '[Playlist]';
 const ffmpegProgressTrackingRegex =
   /^frame=([0-9 ]+)\s+fps=([0-9. ]+)\s+q=([-0-9. ]+)\s+(L?size)=([0-9a-zA-Z. ]+)\s+time=([0-9:. -]+)\s+bitrate=([0-9a-zA-Z./ ]+)\s+speed=([0-9a-zA-Z./ ]+)$/;
 const cutsTimeRegex = /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{2}$/;
-const MAX_FILENAME_LENGTH_BYTES = 255;
+const DEFAULT_FILENAME_LENGTH_CHARS = 80;
+const MAX_FILENAME_LENGTH_CHARS = 255;
 const normalizeFilenameLengthLimit = (value?: number) => {
-  const limit = Number(value || MAX_FILENAME_LENGTH_BYTES);
+  const limit = Number(value || DEFAULT_FILENAME_LENGTH_CHARS);
   if (Number.isNaN(limit)) {
-    return MAX_FILENAME_LENGTH_BYTES;
+    return DEFAULT_FILENAME_LENGTH_CHARS;
   }
-  return Math.max(0, Math.min(Math.floor(limit), MAX_FILENAME_LENGTH_BYTES));
+  return Math.max(0, Math.min(Math.floor(limit), MAX_FILENAME_LENGTH_CHARS));
 };
 
 /**
@@ -93,7 +94,7 @@ export class YtDlpHelper {
     cutStartTime: '',
     cutEndTime: '',
     outputFilename: '',
-    filenameLengthLimit: MAX_FILENAME_LENGTH_BYTES,
+    filenameLengthLimit: DEFAULT_FILENAME_LENGTH_CHARS,
     selectQuality: '',
     enableForceKeyFramesAtCuts: false,
     file: {
@@ -230,7 +231,7 @@ export class YtDlpHelper {
     if (this.videoInfo.filenameLengthLimit > 0) {
       const maxFilenameLength = Math.min(
         Math.floor(this.videoInfo.filenameLengthLimit),
-        MAX_FILENAME_LENGTH_BYTES
+        MAX_FILENAME_LENGTH_CHARS
       );
       if (maxFilenameLength > 0) {
         options.push('--trim-filenames', String(maxFilenameLength));

@@ -5,12 +5,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { type VideoListProps } from '@/components/containers/VideoList';
 import { isPropsEquals } from '@/lib/utils';
 import { VirtuosoGrid } from 'react-virtuoso';
+import type { UserPlaylists } from '@/types/userPlaylist';
 
 type VideoListBodyProps = {
   isLoading: boolean;
+  userPlaylists?: UserPlaylists;
+  viewMode: 'default' | 'playlists';
 } & VideoListProps;
 
-export const VideoListBody = ({ items, orders, isLoading }: VideoListBodyProps) => {
+export const VideoListBody = ({
+  items,
+  orders,
+  userPlaylists,
+  viewMode,
+  isLoading
+}: VideoListBodyProps) => {
   const { layoutMode } = useVideoListStore();
 
   switch (layoutMode) {
@@ -24,13 +33,82 @@ export const VideoListBody = ({ items, orders, isLoading }: VideoListBodyProps) 
     //   );
     // }
     case 'grid': {
-      return <VideoGridViewer items={items} orders={orders} isLoading={isLoading} />;
+      return viewMode === 'playlists' ? (
+        <UserPlaylistGridViewer
+          items={items}
+          orders={orders}
+          userPlaylists={userPlaylists}
+          viewMode={viewMode}
+          isLoading={isLoading}
+        />
+      ) : (
+        <VideoGridViewer
+          items={items}
+          orders={orders}
+          userPlaylists={userPlaylists}
+          viewMode={viewMode}
+          isLoading={isLoading}
+        />
+      );
     }
     default: {
       return <div>Not Supported</div>;
     }
   }
 };
+
+function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: VideoListBodyProps) {
+  const gridClassName =
+    'grid gap-x-3 gap-y-6 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3';
+  const visibleUuids = new Set(orders || []);
+
+  if (isLoading || !items || !orders || !userPlaylists) {
+    return (
+      <VideoGridViewer
+        items={items}
+        orders={orders}
+        userPlaylists={userPlaylists}
+        viewMode='default'
+        isLoading={isLoading}
+      />
+    );
+  }
+
+  const visiblePlaylistIds = userPlaylists.orders.filter((playlistId) => {
+    const playlist = userPlaylists.items[playlistId];
+    return playlist?.uuids.some((uuid) => visibleUuids.has(uuid) && items[uuid]);
+  });
+
+  if (visiblePlaylistIds.length === 0) {
+    return (
+      <div className='flex min-h-[40vh] w-full items-center justify-center py-10'>
+        <span className='select-none text-3xl text-muted-foreground opacity-50'>No playlists</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className='space-y-10'>
+      {visiblePlaylistIds.map((playlistId) => {
+        const playlist = userPlaylists.items[playlistId];
+        const playlistUuids = playlist.uuids.filter((uuid) => visibleUuids.has(uuid) && items[uuid]);
+        return (
+          <section key={playlistId} className='space-y-4'>
+            <div className='flex items-baseline gap-x-2'>
+              <h2 className='text-lg font-bold'>{playlist.name}</h2>
+              <span className='text-sm text-muted-foreground'>({playlistUuids.length})</span>
+            </div>
+            <div className={gridClassName}>
+              {playlistUuids.map((uuid) => (
+                <VideoGridItemWithMemo key={`${playlistId}-${uuid}`} video={items[uuid]} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
 function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
   const gridClassName =

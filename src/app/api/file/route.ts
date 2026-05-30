@@ -5,6 +5,7 @@ import { lookup } from 'mime-types';
 import { ProcessHelper } from '@/server/helpers/ProcessHelper';
 import { VIDEO_LIST_FILE, DOWNLOAD_PATH, CACHE_PATH } from '@/server/constants';
 import type { VideoFileVariant, VideoInfo } from '@/types/video';
+import { UserPlaylistHelper } from '@/server/helpers/UserPlaylistHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -194,6 +195,7 @@ export async function DELETE(request: Request) {
         }
       } catch (e) {}
       if (deleteList) {
+        await UserPlaylistHelper.removeUuid(videoInfo.uuid);
         await CacheHelper.delete(videoInfo.uuid);
       } else {
         videoInfo.status = 'failed';
