@@ -26,6 +26,7 @@ interface State {
   cutEndTime: string;
   enableOutputFilename: boolean;
   outputFilename: string;
+  filenameLengthLimit: number;
   selectQuality: SelectQuality;
   enableForceKeyFramesAtCuts: boolean;
   subLangs: Array<string>;
@@ -55,6 +56,7 @@ interface Store extends State {
   setCutEndTime: (cutEndTime: string) => void;
   setEnableOutputFilename: (enableOutputFilename: boolean) => void;
   setOutputFilename: (outputFilename: string) => void;
+  setFilenameLengthLimit: (filenameLengthLimit: number) => void;
   setSelectQuality: (selectQuality: SelectQuality) => void;
   setForceKeyFramesAtCuts: (enableForceKeyFramesAtCuts: boolean) => void;
   loadDownloadedOptions: (video: VideoInfo) => void;
@@ -92,6 +94,7 @@ const initialState: State = {
   cutEndTime: '',
   enableOutputFilename: true,
   outputFilename: '%(title)s (%(id)s)',
+  filenameLengthLimit: 4096,
   selectQuality: 'best',
   enableForceKeyFramesAtCuts: false,
   subLangs: []
@@ -120,6 +123,7 @@ export const useDownloadFormStore = createWithEqualityFn(
           cutEndTime,
           enableOutputFilename,
           outputFilename,
+          filenameLengthLimit,
           enableDownloadNow,
           selectQuality,
           enableForceKeyFramesAtCuts,
@@ -156,6 +160,9 @@ export const useDownloadFormStore = createWithEqualityFn(
 
         if (enableOutputFilename) {
           params.outputFilename = `${outputFilename}.%(ext)s`;
+        }
+        if (filenameLengthLimit > 0) {
+          params.filenameLengthLimit = filenameLengthLimit;
         }
         if (enableDownloadNow && !params.audioId && !params.videoId) {
           params.selectQuality = selectQuality;
@@ -278,6 +285,9 @@ export const useDownloadFormStore = createWithEqualityFn(
       setOutputFilename(outputFilename) {
         set({ outputFilename });
       },
+      setFilenameLengthLimit(filenameLengthLimit) {
+        set({ filenameLengthLimit });
+      },
       setSelectQuality(selectQuality: SelectQuality) {
         set({ selectQuality });
       },
@@ -295,6 +305,7 @@ export const useDownloadFormStore = createWithEqualityFn(
             video.outputFilename && video.outputFilename !== '%(title)s (%(id)s).%(ext)s'
           ),
           outputFilename: newOutputFilename,
+          filenameLengthLimit: video.filenameLengthLimit || initialState.filenameLengthLimit,
           usingCookies: video.usingCookies ?? initialState.usingCookies,
           cutVideo: video.cutVideo ?? initialState.cutVideo,
           cutStartTime: video.cutStartTime ?? initialState.cutStartTime,
@@ -337,6 +348,7 @@ export const useDownloadFormStore = createWithEqualityFn(
           'enableLiveFromStart',
           'enableOutputFilename',
           'outputFilename',
+          'filenameLengthLimit',
           'selectQuality',
           // 'cutVideo',
           // 'cutStartTime',

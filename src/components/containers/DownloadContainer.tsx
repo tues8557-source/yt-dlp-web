@@ -390,21 +390,27 @@ const FileNameOption = () => {
     hydrated,
     enableOutputFilename,
     outputFilename,
+    filenameLengthLimit,
     setOutputFilename,
-    setEnableOutputFilename
+    setEnableOutputFilename,
+    setFilenameLengthLimit
   } = useDownloadFormStore(
     ({
       hydrated,
       enableOutputFilename,
       outputFilename,
+      filenameLengthLimit,
       setOutputFilename,
-      setEnableOutputFilename
+      setEnableOutputFilename,
+      setFilenameLengthLimit
     }) => ({
       hydrated,
       enableOutputFilename,
       outputFilename,
+      filenameLengthLimit,
       setOutputFilename,
-      setEnableOutputFilename
+      setEnableOutputFilename,
+      setFilenameLengthLimit
     }),
     shallow
   );
@@ -417,6 +423,11 @@ const FileNameOption = () => {
   const handleChangeOutputFilename = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value || '';
     setOutputFilename(value);
+  };
+  const handleChangeFilenameLengthLimit = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(event.target.value || 0);
+    if (Number.isNaN(value)) return;
+    setFilenameLengthLimit(Math.max(0, Math.floor(value)));
   };
 
   return (
@@ -451,6 +462,19 @@ const FileNameOption = () => {
           onClick={() => {
             toast.info("You can't change the extension.");
           }}
+        />
+      </div>
+      <div className='flex items-center gap-x-1'>
+        <span className='text-xs text-muted-foreground'>Filename length limit</span>
+        <Input
+          className='h-auto w-[72px] px-1 py-0.5 leading-[1]'
+          type='number'
+          min={0}
+          step={1}
+          value={filenameLengthLimit}
+          disabled={!enableOutputFilename}
+          title='Total path + filename length limit (0 disables)'
+          onChange={handleChangeFilenameLengthLimit}
         />
       </div>
     </div>

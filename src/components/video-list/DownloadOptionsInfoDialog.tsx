@@ -69,6 +69,9 @@ export function DownloadOptionsInfoDialog({
             <b>{video.outputFilename ?? initialDownloadFormState.outputFilename}</b>
           </div>
           <div>
+            Filename length limit: <b>{video.filenameLengthLimit || 0}</b>
+          </div>
+          <div>
             Cut Video: <b>{video.cutVideo ? 'Yes' : 'No'}</b>
           </div>
           <div>

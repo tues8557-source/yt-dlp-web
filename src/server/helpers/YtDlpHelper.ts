@@ -38,6 +38,8 @@ const playlistFolderPrefix = '[Playlist]';
 const ffmpegProgressTrackingRegex =
   /^frame=([0-9 ]+)\s+fps=([0-9. ]+)\s+q=([-0-9. ]+)\s+(L?size)=([0-9a-zA-Z. ]+)\s+time=([0-9:. -]+)\s+bitrate=([0-9a-zA-Z./ ]+)\s+speed=([0-9a-zA-Z./ ]+)$/;
 const cutsTimeRegex = /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{2}$/;
+const SYNOLOGY_MAX_PATH_LENGTH = 4096;
+const SYNOLOGY_MAX_FILENAME_LENGTH = 255;
 
 /**
  *
@@ -85,6 +87,7 @@ export class YtDlpHelper {
     cutStartTime: '',
     cutEndTime: '',
     outputFilename: '',
+    filenameLengthLimit: 0,
     selectQuality: '',
     enableForceKeyFramesAtCuts: false,
     file: {
@@ -128,6 +131,7 @@ export class YtDlpHelper {
     cutStartTime?: string;
     cutEndTime?: string;
     outputFilename?: string;
+    filenameLengthLimit?: number;
     selectQuality?: SelectQuality;
     enableForceKeyFramesAtCuts?: boolean;
   }) {
@@ -149,6 +153,7 @@ export class YtDlpHelper {
     this.videoInfo.proxyAddress = querys.proxyAddress || '';
     this.videoInfo.enableLiveFromStart = querys.enableLiveFromStart || false;
     this.videoInfo.outputFilename = querys.outputFilename || '';
+    this.videoInfo.filenameLengthLimit = Number(querys.filenameLengthLimit || 0);
     this.videoInfo.selectQuality = querys.selectQuality || '';
     this.videoInfo.enableForceKeyFramesAtCuts = querys.enableForceKeyFramesAtCuts || false;
 
@@ -215,6 +220,21 @@ export class YtDlpHelper {
       '-P',
       DOWNLOAD_PATH
     ];
+
+    if (this.videoInfo.filenameLengthLimit > 0) {
+      const outputPathLength = Buffer.byteLength(`${DOWNLOAD_PATH}/`, 'utf8');
+      const totalPathLimit = Math.min(
+        Math.floor(this.videoInfo.filenameLengthLimit),
+        SYNOLOGY_MAX_PATH_LENGTH
+      );
+      const maxFilenameLength = Math.min(
+        Math.floor(totalPathLimit - outputPathLength),
+        SYNOLOGY_MAX_FILENAME_LENGTH
+      );
+      if (maxFilenameLength > 0) {
+        options.push('--trim-filenames', String(maxFilenameLength));
+      }
+    }
 
     if (!this.videoInfo.cutVideo) {
       options.push('--print', 'after_move:filepath');

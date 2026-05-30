@@ -58,6 +58,7 @@ export async function GET(request: Request) {
     cutStartTime: videoInfo?.cutStartTime || '',
     cutEndTime: videoInfo?.cutEndTime || '',
     outputFilename: videoInfo?.outputFilename || '',
+    filenameLengthLimit: videoInfo?.filenameLengthLimit || 0,
     selectQuality: videoInfo?.selectQuality || '',
     enableForceKeyFramesAtCuts: videoInfo?.enableForceKeyFramesAtCuts || false
   });
