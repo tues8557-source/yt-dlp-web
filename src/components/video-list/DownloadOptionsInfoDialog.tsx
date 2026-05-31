@@ -20,6 +20,11 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import {
+  appendOutputFilenameExtension,
+  OutputFilenameEditorField,
+  stripOutputFilenameExtension
+} from '@/components/OutputFilenameEditor';
 
 export type DownloadOptionsInfoDialogProps = {
   open: boolean;
@@ -38,7 +43,9 @@ export function DownloadOptionsInfoDialog({
     video.selectQuality || (video.format === 'ba' ? 'audio' : initialDownloadFormState.selectQuality)
   );
   const [outputFilename, setOutputFilename] = useState(
-    video.outputFilename || `${initialDownloadFormState.outputFilename}.%(ext)s`
+    stripOutputFilenameExtension(
+      video.outputFilename || appendOutputFilenameExtension(initialDownloadFormState.outputFilename)
+    )
   );
   const [filenameLengthLimit, setFilenameLengthLimit] = useState(
     String(initialDownloadFormState.filenameLengthLimit)
@@ -78,7 +85,7 @@ export function DownloadOptionsInfoDialog({
         params: {
           uuid: video.uuid,
           selectQuality,
-          outputFilename,
+          outputFilename: appendOutputFilenameExtension(outputFilename),
           filenameLengthLimit,
           usingCookies,
           embedThumbnail,
@@ -242,14 +249,13 @@ export function DownloadOptionsInfoDialog({
                       </SelectContent>
                     </Select>
                   </Label>
-                  <Label className='flex flex-col gap-y-1'>
+                  <div className='flex min-w-0 flex-col gap-y-1'>
                     <span>Output filename</span>
-                    <Input
+                    <OutputFilenameEditorField
                       value={outputFilename}
-                      placeholder='%(title)s (%(id)s).%(ext)s'
-                      onChange={(event) => setOutputFilename(event.target.value)}
+                      onChange={setOutputFilename}
                     />
-                  </Label>
+                  </div>
                   <Label className='flex flex-col gap-y-1'>
                     <span>Trim length</span>
                     <Input
