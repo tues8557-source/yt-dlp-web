@@ -122,11 +122,11 @@ const OutputFilenameEditor = forwardRef<
 
   const getTextPartWidth = (part: Extract<OutputFilenamePart, { type: 'text' }>, index: number) => {
     if (!part.value) {
-      return index === 0 && !value ? '190px' : '18px';
+      return index === 0 && !value ? '150px' : '1px';
     }
 
     if (typeof document === 'undefined') {
-      return `calc(${Math.max(part.value.length, 1)}ch + 8px)`;
+      return `${Math.max(part.value.length, 1)}ch`;
     }
 
     if (!textMeasureCanvasRef.current) {
@@ -136,11 +136,11 @@ const OutputFilenameEditor = forwardRef<
     const context = textMeasureCanvasRef.current.getContext('2d');
     const input = inputRefs.current[index];
     if (!context || !input) {
-      return `calc(${Math.max(part.value.length, 1)}ch + 8px)`;
+      return `${Math.max(part.value.length, 1)}ch`;
     }
 
     context.font = window.getComputedStyle(input).font;
-    return `${Math.ceil(context.measureText(part.value).width) + 8}px`;
+    return `${Math.ceil(context.measureText(part.value).width)}px`;
   };
 
   const insertToken = (tokenValue: OutputFilenameToken['value']) => {
@@ -217,7 +217,7 @@ const OutputFilenameEditor = forwardRef<
 
   return (
     <div
-      className='flex min-h-[38px] w-full min-w-0 flex-1 cursor-text items-center rounded-md border border-input bg-background px-1.5 py-1 text-left focus-within:ring-1 focus-within:ring-ring'
+      className='flex min-h-[34px] w-full min-w-0 flex-1 cursor-text items-center rounded-md border border-input bg-background px-1.5 py-1 text-left focus-within:ring-1 focus-within:ring-ring'
       onClick={(event) => {
         if (!disabled && event.target === event.currentTarget) focusEditorEnd();
       }}
@@ -235,7 +235,7 @@ const OutputFilenameEditor = forwardRef<
               <button
                 key={`${part.value}-${index}`}
                 type='button'
-                className='inline-flex h-7 shrink-0 cursor-text select-none items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 text-sm font-medium leading-none text-primary'
+                className='inline-flex h-6 shrink-0 cursor-text select-none items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 text-sm font-medium leading-none text-primary'
                 title={`Place cursor after ${token?.label || part.value}`}
                 disabled={disabled}
                 onClick={() => focusTextInput(index + 1, 'start')}
@@ -251,7 +251,7 @@ const OutputFilenameEditor = forwardRef<
               ref={(element) => {
                 inputRefs.current[index] = element;
               }}
-              className='h-7 min-w-0 bg-transparent px-1 text-sm caret-primary outline-none disabled:cursor-not-allowed disabled:opacity-50'
+              className='h-7 min-w-0 bg-transparent px-0 text-sm caret-primary outline-none disabled:cursor-not-allowed disabled:opacity-50'
               style={{ width: getTextPartWidth(part, index) }}
               value={part.value}
               disabled={disabled}
@@ -282,13 +282,13 @@ export function OutputFilenameEditorField({
   const editorRef = useRef<OutputFilenameEditorHandle>(null);
 
   return (
-    <div className='flex min-w-0 flex-1 items-start gap-x-1'>
+    <div className='flex min-w-0 basis-[320px] flex-1 items-start gap-x-1'>
       <OutputFilenameEditor ref={editorRef} value={value} disabled={disabled} onChange={onChange} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             type='button'
-            className='h-[38px] w-[38px] shrink-0 rounded-full border border-primary/30 bg-primary/90 px-0 py-0 text-primary-foreground shadow-sm hover:bg-primary'
+            className='h-[34px] w-[34px] shrink-0 rounded-full border border-primary/30 bg-primary/90 px-0 py-0 text-primary-foreground shadow-sm hover:bg-primary'
             disabled={disabled}
             title='Add filename variable'
           >
