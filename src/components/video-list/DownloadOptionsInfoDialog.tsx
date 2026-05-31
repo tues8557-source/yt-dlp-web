@@ -254,6 +254,7 @@ export function DownloadOptionsInfoDialog({
                     <OutputFilenameEditorField
                       value={outputFilename}
                       onChange={setOutputFilename}
+                      className='basis-auto'
                     />
                   </div>
                   <Label className='flex flex-col gap-y-1'>

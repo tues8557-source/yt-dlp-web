@@ -251,16 +251,16 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         {isSelectMode ? (
           <h1 className='text-center text-lg font-bold whitespace-nowrap'>Select Mode</h1>
         ) : (
-          <div className='flex shrink-0 items-center gap-1.5 whitespace-nowrap text-lg font-bold'>
+          <div className='hidden shrink-0 items-center gap-1.5 whitespace-nowrap text-lg font-bold sm:flex'>
             <span>Videos({videoLength})</span>
             <span className='text-muted-foreground'>/</span>
             <span>Audio({audioLength})</span>
           </div>
         )}
-        <div className='flex items-center justify-between ml-auto rounded-full shadow-sm flex-auto'>
+        <div className='ml-auto flex min-w-0 flex-1 items-center justify-between rounded-full shadow-sm'>
           <Input
             type='text'
-            className='h-8 p-1 pl-3 shrink flex-auto rounded-full rounded-r-none border-none'
+            className='h-8 min-w-0 flex-1 shrink p-1 pl-3 rounded-full rounded-r-none border-none'
             value={search}
             placeholder='Search title, filename'
             onChange={handleChangeSearchValue}
@@ -334,7 +334,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         )} */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon' className='text-2xl rounded-full'>
+            <Button variant='ghost' size='icon' className='shrink-0 text-2xl rounded-full'>
               <BiDotsVerticalRounded />
             </Button>
           </DropdownMenuTrigger>

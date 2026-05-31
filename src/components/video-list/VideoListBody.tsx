@@ -7,6 +7,8 @@ import { isPropsEquals } from '@/lib/utils';
 import { VirtuosoGrid } from 'react-virtuoso';
 import type { UserPlaylists } from '@/types/userPlaylist';
 
+const getUserPlaylistSectionId = (playlistId: string) => `user-playlist-${playlistId}`;
+
 type VideoListBodyProps = {
   isLoading: boolean;
   userPlaylists?: UserPlaylists;
@@ -89,11 +91,37 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
 
   return (
     <div className='space-y-10'>
+      <nav
+        className='flex gap-2 overflow-x-auto pb-1 scrollbar-hidden'
+        aria-label='Playlist shortcuts'
+      >
+        {visiblePlaylistIds.map((playlistId) => {
+          const playlist = userPlaylists.items[playlistId];
+          return (
+            <button
+              key={playlistId}
+              type='button'
+              className='shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/20'
+              onClick={() => {
+                document
+                  .getElementById(getUserPlaylistSectionId(playlistId))
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              {playlist.name}
+            </button>
+          );
+        })}
+      </nav>
       {visiblePlaylistIds.map((playlistId) => {
         const playlist = userPlaylists.items[playlistId];
         const playlistUuids = playlist.uuids.filter((uuid) => visibleUuids.has(uuid) && items[uuid]);
         return (
-          <section key={playlistId} className='space-y-4'>
+          <section
+            key={playlistId}
+            id={getUserPlaylistSectionId(playlistId)}
+            className='scroll-mt-4 space-y-4'
+          >
             <div className='flex items-baseline gap-x-2'>
               <h2 className='text-lg font-bold'>{playlist.name}</h2>
               <span className='text-sm text-muted-foreground'>({playlistUuids.length})</span>

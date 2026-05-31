@@ -699,7 +699,7 @@ encode speed ${video.download.ffmpeg.speed}`
                 <DropdownMenuTrigger asChild>
                   <Button
                     size='sm'
-                    className='h-[1.7em] rounded-xl rounded-l-none bg-warning text-secondary-foreground hover:bg-warning/90 text-lg'
+                    className='h-[1.7em] rounded-xl rounded-l-none bg-warning text-black hover:bg-warning/90 hover:text-black text-lg'
                     title='Add to playlists'
                   >
                     <BsCollectionPlay />
