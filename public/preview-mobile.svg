@@ -1,0 +1,44 @@
+<svg width="430" height="920" viewBox="0 0 430 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="430" height="920" fill="#101214"/>
+  <rect x="0" y="0" width="430" height="64" fill="#171A1D"/>
+  <text x="22" y="40" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">yt-dlp-web</text>
+  <rect x="350" y="18" width="48" height="30" rx="15" fill="#252A2F"/>
+  <circle cx="374" cy="33" r="8" fill="#CBD5E1"/>
+
+  <rect x="18" y="86" width="394" height="122" rx="10" fill="#191D21" stroke="#2A3036"/>
+  <rect x="34" y="106" width="362" height="40" rx="20" fill="#0F1114" stroke="#343B43"/>
+  <text x="54" y="131" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13">https://youtube.com/watch?v=VIDEO_ID</text>
+  <rect x="34" y="158" width="168" height="34" rx="17" fill="#1F2937"/>
+  <text x="99" y="180" fill="#E5E7EB" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="middle">Paste</text>
+  <rect x="214" y="158" width="182" height="34" rx="17" fill="#2563EB"/>
+  <text x="305" y="180" fill="white" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" text-anchor="middle">Download</text>
+
+  <text x="22" y="252" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">Gallery</text>
+  <rect x="22" y="276" width="386" height="218" rx="10" fill="#050607"/>
+  <rect x="34" y="288" width="94" height="24" rx="6" fill="#111827" opacity="0.92"/>
+  <text x="46" y="305" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">1080p60 h264</text>
+  <rect x="34" y="458" width="58" height="24" rx="6" fill="#111827" opacity="0.92"/>
+  <text x="46" y="475" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">92.4MB</text>
+  <rect x="330" y="458" width="66" height="24" rx="6" fill="#111827" opacity="0.92"/>
+  <text x="342" y="475" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">00:12:44</text>
+  <path d="M178 354L178 416L242 385L178 354Z" fill="#F8FAFC" opacity="0.92"/>
+  <text x="22" y="526" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Building a compact media server</text>
+  <text x="22" y="550" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">with yt-dlp</text>
+  <text x="408" y="550" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="end">2026.06.04</text>
+  <rect x="22" y="574" width="42" height="28" rx="14" fill="#1F2937"/>
+  <rect x="72" y="574" width="42" height="28" rx="14" fill="#1F2937"/>
+  <rect x="122" y="574" width="42" height="28" rx="14" fill="#1F2937"/>
+
+  <rect x="22" y="632" width="386" height="218" rx="10" fill="#050607"/>
+  <rect x="34" y="644" width="86" height="24" rx="6" fill="#111827" opacity="0.92"/>
+  <text x="46" y="661" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">720p30 vp9</text>
+  <rect x="34" y="814" width="58" height="24" rx="6" fill="#111827" opacity="0.92"/>
+  <text x="46" y="831" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">48.1MB</text>
+  <rect x="336" y="814" width="60" height="24" rx="6" fill="#111827" opacity="0.92"/>
+  <text x="348" y="831" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">00:08:11</text>
+  <rect x="169" y="708" width="92" height="56" rx="8" fill="#334155"/>
+  <rect x="187" y="724" width="56" height="6" rx="3" fill="#E2E8F0"/>
+  <rect x="187" y="741" width="56" height="6" rx="3" fill="#E2E8F0"/>
+  <text x="22" y="880" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Saved livestream replay</text>
+  <text x="408" y="904" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="end">2026.05.30</text>
+</svg>

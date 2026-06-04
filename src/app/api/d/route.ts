@@ -12,26 +12,33 @@ import {
 export const dynamic = 'force-dynamic';
 const FILENAME_LENGTH_LIMIT_CHARS = 80;
 
+const getBooleanParam = (searchParams: URLSearchParams, key: string, fallback = false) => {
+  if (!searchParams.has(key)) {
+    return fallback;
+  }
+  return searchParams.get(key) === 'true';
+};
+
 export async function GET(request: Request) {
   const urlObject = new URL(request.url);
   const searchParams = urlObject.searchParams;
   const url = searchParams.get('url')?.trim?.();
-  const usingCookies = searchParams.get('usingCookies') === 'true';
-  const embedThumbnail = searchParams.get('embedThumbnail') === 'true';
-  const embedChapters = searchParams.get('embedChapters') === 'true';
-  const embedMetadata = searchParams.get('embedMetadata') === 'true';
-  const embedVideoThumbnail = searchParams.get('embedVideoThumbnail') === 'true';
-  const embedSubs = searchParams.get('embedSubs') === 'true';
+  const usingCookies = getBooleanParam(searchParams, 'usingCookies');
+  const embedThumbnail = getBooleanParam(searchParams, 'embedThumbnail', true);
+  const embedChapters = getBooleanParam(searchParams, 'embedChapters', true);
+  const embedMetadata = getBooleanParam(searchParams, 'embedMetadata', true);
+  const embedVideoThumbnail = getBooleanParam(searchParams, 'embedVideoThumbnail');
+  const embedSubs = getBooleanParam(searchParams, 'embedSubs');
   const subLangs = searchParams.getAll('subLangs[]') || searchParams.getAll('subLangs');
-  const enableProxy = searchParams.get('enableProxy') === 'true';
+  const enableProxy = getBooleanParam(searchParams, 'enableProxy');
   const proxyAddress = searchParams.get('proxyAddress') || '';
-  const enableLiveFromStart = searchParams.get('enableLiveFromStart') === 'true';
-  const cutVideo = searchParams.get('cutVideo') === 'true';
+  const enableLiveFromStart = getBooleanParam(searchParams, 'enableLiveFromStart');
+  const cutVideo = getBooleanParam(searchParams, 'cutVideo');
   const cutStartTime = searchParams.get('cutStartTime') || '';
   const cutEndTime = searchParams.get('cutEndTime') || '';
   const outputFilename = searchParams.get('outputFilename') || '';
   const selectQuality = (searchParams.get('selectQuality') || '') as SelectQuality;
-  const enableForceKeyFramesAtCuts = searchParams.get('enableForceKeyFramesAtCuts') === 'true';
+  const enableForceKeyFramesAtCuts = getBooleanParam(searchParams, 'enableForceKeyFramesAtCuts');
 
   // const url = context?.params?.url;
 

@@ -122,6 +122,93 @@ export class FFmpegHelper {
     });
   }
 
+  async extractEmbeddedThumbnail(outputPath: string) {
+    if (!this.filePath) {
+      throw 'file path is not found';
+    }
+
+    const streamIndex = await this.getEmbeddedThumbnailStreamIndex();
+    if (typeof streamIndex !== 'number') {
+      throw 'embedded thumbnail is not found';
+    }
+
+    await fs.mkdir(parse(outputPath).dir, { recursive: true });
+
+    return new Promise((resolve: (filePath: string) => void, reject: (message: string) => void) => {
+      const ffmpeg = spawn('ffmpeg', [
+        '-y',
+        '-loglevel',
+        'error',
+        '-i',
+        this.filePath,
+        '-map',
+        `0:${streamIndex}`,
+        '-frames:v',
+        '1',
+        '-update',
+        '1',
+        outputPath
+      ]);
+
+      let stderr = '';
+      ffmpeg.stderr.setEncoding('utf-8');
+      ffmpeg.stderr.on('data', (data) => {
+        stderr += data?.trim?.() || '';
+      });
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve(outputPath);
+          return;
+        }
+        reject(stderr || 'Failed to extract embedded thumbnail');
+      });
+    });
+  }
+
+  private async getEmbeddedThumbnailStreamIndex() {
+    const ffprobe = spawn('ffprobe', [
+      '-v',
+      'error',
+      '-select_streams',
+      'v',
+      '-show_entries',
+      'stream=index:stream_disposition=attached_pic',
+      '-of',
+      'json',
+      this.filePath
+    ]);
+
+    let stdoutChunks = '';
+    let stderr = '';
+
+    ffprobe.stdout.setEncoding('utf-8');
+    ffprobe.stdout.on('data', (data) => {
+      const text = data?.trim?.();
+      if (text) stdoutChunks += text;
+    });
+    ffprobe.stderr.setEncoding('utf-8');
+    ffprobe.stderr.on('data', (data) => {
+      stderr += data?.trim?.() || '';
+    });
+
+    return new Promise((resolve: (streamIndex?: number) => void, reject: (message: string) => void) => {
+      ffprobe.on('close', (code) => {
+        if (code !== 0) {
+          reject(stderr || 'Failed to find embedded thumbnail');
+          return;
+        }
+
+        try {
+          const json = JSON.parse(stdoutChunks || '{}') as FFmpegStreamsJson;
+          const stream = json.streams?.find((stream) => stream.disposition?.attached_pic === 1);
+          resolve(stream?.index);
+        } catch (e) {
+          reject('Failed to parse embedded thumbnail stream');
+        }
+      });
+    });
+  }
+
   private async downloadImage(url: string) {
     const response = await fetch(url);
     if (!response.ok) {

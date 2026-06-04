@@ -1,100 +1,187 @@
 # yt-dlp-web
-![docker latest version](https://img.shields.io/docker/v/sooros5132/yt-dlp-web?color=#4c1) ![docker image size](https://img.shields.io/docker/image-size/sooros5132/yt-dlp-web) ![docker pulls](https://img.shields.io/docker/pulls/sooros5132/yt-dlp-web)
 
-Self-hosted [yt-dlp](https://github.com/yt-dlp/yt-dlp) with the Web UI.<br />
-You can watch or download videos downloaded to a remote server.
+Self-hosted [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a web UI for downloading, browsing, streaming, and managing videos on a remote server.
 
-[Docker Hub](https://hub.docker.com/r/sooros5132/yt-dlp-web) | [Supported Sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
-<br />
+This fork publishes Docker images to GitHub Container Registry:
 
-# Preview
-| Mobile | Desktop | 
-|--|--|
-| ![DarkMode View](https://github.com/sooros5132/yt-dlp-web/assets/74892930/438d6fb9-18e5-4e89-949f-1b25e072af88) | ![Desktop View](https://github.com/sooros5132/yt-dlp-web/assets/74892930/5bb2d22a-2c93-4428-be02-02e1b65a361d) |
+```text
+ghcr.io/tues8557-source/yt-dlp-web:latest
+```
 
-# Getting Started
-1. Star this repo ⭐️
-2. Create a `docker-compose.yml` file, set `user`, `volumes`, and `ports` to your environment
-```YML
-version: "3"
+[Supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
 
+## Preview
+
+| Mobile | Desktop |
+| --- | --- |
+| ![Mobile preview](public/preview-mobile.svg) | ![Desktop preview](public/preview-desktop.svg) |
+
+## Features
+
+- Download videos, audio, playlists, and livestreams through a web UI.
+- Browse downloaded items in a responsive gallery or list view.
+- Play downloaded videos from the browser, including playlist items.
+- Store local thumbnails in `/cache/thumbnails` and use embedded video thumbnails as a fallback.
+- Embed thumbnail, chapter markers, and metadata by default.
+- Choose quality presets or explicit video/audio formats.
+- Set output filename templates with yt-dlp variables.
+- Download and embed subtitles.
+- Use cookies, proxy settings, live-from-start, and cut-video options.
+- Generate Safari-compatible playback variants when needed.
+- Delete files while keeping list entries, or remove list entries separately.
+- Start downloads from automation tools with the `/api/d` endpoint.
+
+## Quick Start
+
+Create a `docker-compose.yml` file:
+
+```yaml
 services:
   yt-dlp-web:
-    image: sooros5132/yt-dlp-web
+    image: ghcr.io/tues8557-source/yt-dlp-web:latest
     container_name: yt-dlp-web
-    user: 1000:1000 # User Id, Group Id Setting
-    # environment:
-    #   If you need to protect the site, set AUTH_SECRET, CREDENTIAL_USERNAME, CREDENTIAL_PASSWORD.
-    #   ex)
-    #   AUTH_SECRET: "Random_string,_40+_characters_recommended"
-    #   CREDENTIAL_USERNAME: "username"
-    #   CREDENTIAL_PASSWORD: "password"
+    user: 1000:1000
     volumes:
-      - /path/to/downloads:/downloads # Downloads folder
-      - /path/to/cache:/cache         # Cache folder
+      - /path/to/downloads:/downloads
+      - /path/to/cache:/cache
     ports:
-      - 3000:3000 # Web Page Port Mapping
+      - 3000:3000
     restart: unless-stopped
 ```
 
-3. Download and run the Docker image
-```BASH
-# When docker-compose version is v1
-docker-compose up -d
+Start it:
 
-# When docker-compose version is v2
+```bash
 docker compose up -d
 ```
 
-# Change yt-dlp version
-If you change versions, it might not work correctly.
-```BASH
-# To update to nightly from stable executable/binary:
-docker exec -u 0 -it yt-dlp-web /usr/local/bin/yt-dlp --update-to nightly
+Open:
 
-# Specifying versions, releases: https://github.com/yt-dlp/yt-dlp/releases
-docker exec -u 0 -it yt-dlp-web /usr/local/bin/yt-dlp --update-to stable@<releases date>
-# ex) docker exec -u 0 -it yt-dlp-web /usr/local/bin/yt-dlp --update-to stable@2024.08.06
+```text
+http://localhost:3000
 ```
 
-# Automation download API
-If authentication is enabled, set `API_TOKEN` to allow trusted automation to start downloads without loading the web page.
+The container needs write access to both mounted folders:
 
-```YML
+- `/downloads`: downloaded media files
+- `/cache`: app cache, download list, cookies, local thumbnails
+
+## Authentication
+
+Authentication is disabled unless all three credential variables are set.
+
+```yaml
 environment:
-  AUTH_SECRET: "Random_string,_40+_characters_recommended"
+  AUTH_SECRET: "Random_string_40_or_more_characters_recommended"
+  CREDENTIAL_USERNAME: "username"
+  CREDENTIAL_PASSWORD: "password"
+```
+
+When authentication is enabled, the web UI requires sign-in.
+
+## Automation Download API
+
+Set `API_TOKEN` to let trusted tools start downloads without opening the browser UI. This token currently applies to `/api/d`.
+
+```yaml
+environment:
+  AUTH_SECRET: "Random_string_40_or_more_characters_recommended"
   CREDENTIAL_USERNAME: "username"
   CREDENTIAL_PASSWORD: "password"
   API_TOKEN: "Random_string_for_automation_download_api"
 ```
 
-```BASH
+Example:
+
+```bash
 curl \
   -H "Authorization: Bearer $API_TOKEN" \
   "https://your-domain.example/api/d?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DVIDEO_ID"
 ```
 
-# iOS Shortcut
-You can open yt-dlp-web in the app's share with a shortcut.<br/>Before using it, please enter the domain where yt-dlp-web is deployed in the text box in the shortcut's settings below.
-[https://www.icloud.com/shortcuts/8b038411c518474bbfe566f9fbe1e046](https://www.icloud.com/shortcuts/8b038411c518474bbfe566f9fbe1e046)
+For direct API downloads, these options default to enabled:
 
-<br />
+- `embedThumbnail=true`
+- `embedChapters=true`
+- `embedMetadata=true`
 
-# To Do
-- [X] Change to the component library shadcn/ui
-- [X] Add the ability to delete selected videos
-- [X] Options for Output filename
-- [X] Choose quality when downloading immediately
-- [ ] ~~Table View~~ _canceld_
+You can explicitly disable them:
 
-# Tested
-- Ubuntu 22.04.2 LTS
-- macOS Sequoia v15.0.1
+```text
+/api/d?url=...&embedThumbnail=false&embedChapters=false&embedMetadata=false
+```
 
-# Used stack
-- [yt-dlp v2025.05.22](https://github.com/yt-dlp/yt-dlp)
-- [ffmpeg v6.0.1](https://ffmpeg.org/)
-- [Next.js v14.2.13](https://nextjs.org/)
-- [React v18.2](https://react.dev/)
-- [TypeScript v5](https://www.typescriptlang.org/)
-- [Docker](https://www.docker.com/)
+Useful query parameters:
+
+| Parameter | Example | Description |
+| --- | --- | --- |
+| `url` | `https://www.youtube.com/watch?v=...` | Required media URL |
+| `selectQuality` | `best`, `1080p`, `audio` | Quality preset when explicit formats are not selected |
+| `outputFilename` | `%(title)s (%(id)s).%(ext)s` | yt-dlp output filename template |
+| `embedSubs` | `true` | Embed subtitles |
+| `subLangs` | `en,ko` | Subtitle languages |
+| `usingCookies` | `true` | Use the server-side cookies file |
+| `enableProxy` | `true` | Enable proxy |
+| `proxyAddress` | `http://host:port` | Proxy address |
+| `enableLiveFromStart` | `true` | Download livestreams from the start |
+| `cutVideo` | `true` | Download a section only |
+| `cutStartTime` | `00:01:00` | Section start |
+| `cutEndTime` | `00:02:00` | Section end |
+
+## iOS Shortcut
+
+You can use an iOS Shortcut to send shared URLs directly to the automation API without opening the web UI. Configure the shortcut with your deployed domain and, if authentication is enabled, your `API_TOKEN`.
+
+Existing shortcut link:
+
+```text
+https://www.icloud.com/shortcuts/8b038411c518474bbfe566f9fbe1e046
+```
+
+## Updating yt-dlp
+
+The container downloads a fresh yt-dlp binary at startup. You can override the download URL:
+
+```yaml
+environment:
+  YT_DLP_DOWNLOAD_URL: "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+```
+
+You can also update manually inside a running container:
+
+```bash
+docker exec -u 0 -it yt-dlp-web /tmp/yt-dlp-bin/yt-dlp --update-to nightly
+docker exec -u 0 -it yt-dlp-web /tmp/yt-dlp-bin/yt-dlp --update-to stable@2024.08.06
+```
+
+## Development
+
+Install dependencies and run the Next.js dev server:
+
+```bash
+npm install
+npm run dev
+```
+
+Build and lint:
+
+```bash
+npm run build
+npm run lint
+```
+
+The app expects `/downloads` and `/cache` paths at runtime. Docker is the recommended development target when testing real downloads.
+
+## Stack
+
+- yt-dlp
+- ffmpeg
+- Next.js 14
+- React 18
+- TypeScript
+- shadcn/ui
+- Docker
+
+## Notes
+
+This project is a fork of `sooros5132/yt-dlp-web`. The README now documents this fork's current Docker image, authentication/API behavior, local thumbnail handling, and gallery changes.

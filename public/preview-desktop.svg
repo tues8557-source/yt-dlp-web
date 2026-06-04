@@ -1,0 +1,76 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="760" fill="#101214"/>
+  <rect x="0" y="0" width="1280" height="64" fill="#171A1D"/>
+  <text x="36" y="40" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700">yt-dlp-web</text>
+  <rect x="1044" y="18" width="92" height="30" rx="15" fill="#252A2F"/>
+  <text x="1070" y="38" fill="#CBD5E1" font-family="Inter, Arial, sans-serif" font-size="13">Cache</text>
+  <rect x="1150" y="18" width="94" height="30" rx="15" fill="#252A2F"/>
+  <text x="1176" y="38" fill="#CBD5E1" font-family="Inter, Arial, sans-serif" font-size="13">Theme</text>
+
+  <rect x="36" y="92" width="1208" height="94" rx="10" fill="#191D21" stroke="#2A3036"/>
+  <rect x="60" y="116" width="786" height="44" rx="22" fill="#0F1114" stroke="#343B43"/>
+  <text x="86" y="144" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="15">https://www.youtube.com/watch?v=VIDEO_ID</text>
+  <rect x="864" y="116" width="126" height="44" rx="22" fill="#1F2937"/>
+  <text x="902" y="144" fill="#E5E7EB" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="600">Paste</text>
+  <rect x="1004" y="116" width="216" height="44" rx="22" fill="#2563EB"/>
+  <text x="1060" y="144" fill="white" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">Download</text>
+
+  <rect x="36" y="214" width="1208" height="492" rx="10" fill="#15181C" stroke="#2A3036"/>
+  <text x="60" y="252" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700">Gallery</text>
+  <text x="1166" y="252" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="end">Grid view</text>
+
+  <g transform="translate(60 282)">
+    <rect width="348" height="186" rx="9" fill="#0A0C0F"/>
+    <rect x="0" y="0" width="348" height="186" rx="9" fill="#12161A" stroke="#2A3036"/>
+    <rect x="0" y="0" width="348" height="196" rx="9" fill="#050607"/>
+    <rect x="10" y="10" width="92" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="22" y="27" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">1080p60 h264</text>
+    <rect x="10" y="160" width="58" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="22" y="177" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">92.4MB</text>
+    <rect x="274" y="160" width="64" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="286" y="177" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">00:12:44</text>
+    <path d="M139 73L139 123L191 98L139 73Z" fill="#F8FAFC" opacity="0.92"/>
+    <text x="0" y="224" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Building a compact media server</text>
+    <text x="0" y="249" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">with yt-dlp</text>
+    <text x="348" y="249" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="end">2026.06.04</text>
+    <rect x="0" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+    <rect x="54" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+    <rect x="108" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+  </g>
+
+  <g transform="translate(466 282)">
+    <rect width="348" height="186" rx="9" fill="#050607"/>
+    <rect x="10" y="10" width="86" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="22" y="27" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">720p30 vp9</text>
+    <rect x="10" y="160" width="58" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="22" y="177" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">48.1MB</text>
+    <rect x="280" y="160" width="58" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="292" y="177" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">00:08:11</text>
+    <rect x="128" y="68" width="92" height="56" rx="8" fill="#334155"/>
+    <rect x="146" y="83" width="56" height="6" rx="3" fill="#E2E8F0"/>
+    <rect x="146" y="100" width="56" height="6" rx="3" fill="#E2E8F0"/>
+    <text x="0" y="224" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Saved livestream replay</text>
+    <text x="348" y="249" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="end">2026.05.30</text>
+    <rect x="0" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+    <rect x="54" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+  </g>
+
+  <g transform="translate(872 282)">
+    <rect width="348" height="186" rx="9" fill="#050607"/>
+    <rect x="10" y="10" width="78" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="22" y="27" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">Audio opus</text>
+    <rect x="10" y="160" width="52" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="22" y="177" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">9.3MB</text>
+    <rect x="280" y="160" width="58" height="24" rx="6" fill="#111827" opacity="0.92"/>
+    <text x="292" y="177" fill="white" font-family="Inter, Arial, sans-serif" font-size="12">00:42:08</text>
+    <path d="M156 60H194V132H156V60Z" fill="#2563EB"/>
+    <circle cx="175" cy="136" r="20" fill="#2563EB"/>
+    <text x="0" y="224" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Podcast archive episode</text>
+    <text x="348" y="249" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="end">2026.04.18</text>
+    <rect x="0" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+    <rect x="54" y="274" width="46" height="28" rx="14" fill="#1F2937"/>
+  </g>
+
+  <rect x="36" y="726" width="1208" height="1" fill="#2A3036"/>
+  <text x="60" y="748" fill="#64748B" font-family="Inter, Arial, sans-serif" font-size="12">Local thumbnails, embedded metadata, automation API, and remote playback</text>
+</svg>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
@@ -25,6 +25,7 @@ import {
   OutputFilenameEditorField,
   stripOutputFilenameExtension
 } from '@/components/OutputFilenameEditor';
+import { Copy, LinkIcon } from 'lucide-react';
 
 export type DownloadOptionsInfoDialogProps = {
   open: boolean;
@@ -64,6 +65,17 @@ export function DownloadOptionsInfoDialog({
   );
   const [enableProxy, setEnableProxy] = useState(video.enableProxy);
   const [proxyAddress, setProxyAddress] = useState(video.proxyAddress || '');
+  const [copyStatus, setCopyStatus] = useState<'copied' | 'failed' | ''>('');
+
+  useEffect(() => {
+    if (!copyStatus) return;
+
+    const timeout = setTimeout(() => {
+      setCopyStatus('');
+    }, 1400);
+
+    return () => clearTimeout(timeout);
+  }, [copyStatus]);
 
   const handleChangeOpen = (open: boolean) => {
     if (!open) {
@@ -74,6 +86,20 @@ export function DownloadOptionsInfoDialog({
   const handleClickApplyOptionsToDownloadFormStore = () => {
     useDownloadFormStore.getState().loadDownloadedOptions(video);
     onClose();
+  };
+
+  const handleClickCopyUrl = async () => {
+    if (!video.url || !navigator?.clipboard) {
+      setCopyStatus('failed');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(video.url);
+      setCopyStatus('copied');
+    } catch (e) {
+      setCopyStatus('failed');
+    }
   };
 
   const handleClickRetryWithOptions = async () => {
@@ -124,8 +150,54 @@ export function DownloadOptionsInfoDialog({
         </div>
         <Divider></Divider>
         <div className='flex-shrink overflow-auto text-sm'>
-          <div className='break-all'>
-            Url: <b>{video?.url ?? ''}</b>
+          <div className='flex min-w-0 items-center gap-x-2'>
+            <span className='shrink-0'>Url:</span>
+            {video.url ? (
+              <>
+                <a
+                  className='min-w-0 flex-1 truncate font-bold text-primary underline-offset-4 hover:underline'
+                  href={video.url}
+                  rel='noopener noreferrer'
+                  target='_blank'
+                  title={video.url}
+                >
+                  {video.url}
+                </a>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon'
+                  className='h-7 w-7 shrink-0'
+                  title='Copy URL'
+                  onClick={handleClickCopyUrl}
+                >
+                  <Copy className='h-3.5 w-3.5' />
+                </Button>
+                {copyStatus && (
+                  <span
+                    className={`shrink-0 text-xs ${
+                      copyStatus === 'copied' ? 'text-green-500' : 'text-destructive'
+                    }`}
+                  >
+                    {copyStatus === 'copied' ? 'Copied' : 'Failed'}
+                  </span>
+                )}
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon'
+                  className='h-7 w-7 shrink-0'
+                  title='Open URL'
+                  asChild
+                >
+                  <a href={video.url} rel='noopener noreferrer' target='_blank'>
+                    <LinkIcon className='h-3.5 w-3.5' />
+                  </a>
+                </Button>
+              </>
+            ) : (
+              <span className='opacity-60'>Not set</span>
+            )}
           </div>
           <div>
             Download format:{' '}

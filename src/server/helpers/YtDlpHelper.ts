@@ -13,8 +13,8 @@ import type {
 } from '@/types/video';
 import { randomUUID } from 'crypto';
 import { isDevelopment, qualityToYtDlpCmdOptions } from '@/lib/utils';
-import { COOKIES_FILE, DOWNLOAD_PATH } from '@/server/constants';
-import { parse } from 'path';
+import { CACHE_FILE_PREFIX, CACHE_PATH, COOKIES_FILE, DOWNLOAD_PATH } from '@/server/constants';
+import { join, parse } from 'path';
 
 const downloadProgressRegex =
   /^\[download\]\s+([0-9.]+%)\s+of[ ~]+([0-9.a-zA-Z/]+)\s+at\s+([0-9a-zA-Z./ ]+)\s+ETA\s+([0-9a-zA-Z./: ]+)/im;
@@ -75,6 +75,7 @@ export class YtDlpHelper {
     title: '',
     description: '',
     thumbnail: '',
+    uploadDate: null,
     localThumbnail: null,
     isLive: false,
     videoId: '',
@@ -283,8 +284,21 @@ export class YtDlpHelper {
             options.push('--live-from-start');
           }
         } else {
+          const localThumbnail = `${uuid}.png`;
+          const localThumbnailDir = join(CACHE_PATH, 'thumbnails');
+
+          await fs.mkdir(localThumbnailDir, { recursive: true });
+          this.videoInfo.localThumbnail = localThumbnail;
+          options.push(
+            '--write-thumbnail',
+            '--convert-thumbnails',
+            'png',
+            '-o',
+            `thumbnail:${join(localThumbnailDir, `${CACHE_FILE_PREFIX}${uuid}.%(ext)s`)}`
+          );
+
           if (this.videoInfo?.embedThumbnail) {
-            options.push('--embed-thumbnail', '--convert-thumbnails', 'png');
+            options.push('--embed-thumbnail');
           }
           if (this.videoInfo?.embedChapters) {
             options.push('--embed-chapters');
@@ -471,6 +485,7 @@ export class YtDlpHelper {
                 title: json.title || '',
                 description: json.description || '',
                 thumbnail: json.thumbnail || '',
+                uploadDate: json.upload_date || json.release_date || null,
                 isLive: json.is_live || false,
                 type,
                 duration: json.duration || 0,
@@ -758,6 +773,7 @@ export class YtDlpHelper {
     videoInfo.title = metadata?.title || '';
     videoInfo.description = metadata?.description || '';
     videoInfo.thumbnail = metadata?.thumbnail || '';
+    videoInfo.uploadDate = metadata?.uploadDate || null;
     videoInfo.isLive = metadata?.isLive || false;
     videoInfo.updatedAt = Date.now();
     videoInfo.createdAt = Date.now();

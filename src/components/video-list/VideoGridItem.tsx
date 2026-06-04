@@ -40,10 +40,32 @@ export type VideoGridItemProps = {
   video: VideoInfo;
 };
 
+const formatUploadDate = (uploadDate?: string | null) => {
+  if (!uploadDate) {
+    return '';
+  }
+
+  if (/^\d{8}$/.test(uploadDate)) {
+    return `${uploadDate.slice(0, 4)}.${uploadDate.slice(4, 6)}.${uploadDate.slice(6, 8)}`;
+  }
+
+  const parsedDate = new Date(uploadDate);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return '';
+  }
+
+  return [
+    parsedDate.getFullYear(),
+    String(parsedDate.getMonth() + 1).padStart(2, '0'),
+    String(parsedDate.getDate()).padStart(2, '0')
+  ].join('.');
+};
+
 export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const [isValidating, setValidating] = useState(false);
   const [isMouseEntered, setMouseEntered] = useState(false);
-  const [isThumbnailImageError, setThumbnailImageError] = useState(false);
+  const [isLocalThumbnailImageError, setLocalThumbnailImageError] = useState(false);
+  const [isRemoteThumbnailImageError, setRemoteThumbnailImageError] = useState(false);
   const [proxyThumbnailUrl, setProxyThumbnailUrl] = useState('');
   const [isProxyThumbnailImageError, setProxyThumbnailImageError] = useState(false);
   const [isNotSupportedCodec, setNotSupportedCodec] = useState(false);
@@ -62,6 +84,17 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const isRecording = video.status === 'recording';
   const isAlready = video.status === 'already';
   const [isSelected, setSelected] = useState(false);
+  const localThumbnailUrl = isCompleted ? `/api/thumbnail?uuid=${video.uuid}` : '';
+  const shouldUseLocalThumbnail = Boolean(localThumbnailUrl && !isLocalThumbnailImageError);
+  const shouldUseRemoteThumbnail = Boolean(
+    video.thumbnail && !shouldUseLocalThumbnail && !isRemoteThumbnailImageError
+  );
+  const thumbnailUrl = shouldUseLocalThumbnail
+    ? localThumbnailUrl
+    : shouldUseRemoteThumbnail
+      ? video.thumbnail || ''
+      : '';
+  const uploadDate = formatUploadDate(video.uploadDate);
 
   const [openDeleteList, setOpenDeleteList] = useState(false);
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
@@ -256,9 +289,14 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   };
 
   const handleImageError = () => {
-    setThumbnailImageError(true);
-    if (typeof video.thumbnail === 'string' && video.thumbnail.startsWith('http')) {
-      setProxyThumbnailUrl(`/api/image?url=${encodeURIComponent(video.thumbnail)}`);
+    if (shouldUseLocalThumbnail) {
+      setLocalThumbnailImageError(true);
+      return;
+    }
+
+    setRemoteThumbnailImageError(true);
+    if (thumbnailUrl.startsWith('http')) {
+      setProxyThumbnailUrl(`/api/image?url=${encodeURIComponent(thumbnailUrl)}`);
     }
   };
   const handleProxyImageError = () => {
@@ -334,6 +372,13 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const handleCloseDownloadOptionsInfo = () => {
     setOpenDownloadOptionsInfo(false);
   };
+
+  useEffect(() => {
+    setLocalThumbnailImageError(false);
+    setRemoteThumbnailImageError(false);
+    setProxyThumbnailUrl('');
+    setProxyThumbnailImageError(false);
+  }, [video.uuid, video.thumbnail, video.localThumbnail]);
 
   useEffect(() => {
     if (video?.uuid) {
@@ -417,18 +462,15 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
             onClick={handleMouseEnter}
           >
             <figure className='relative w-full h-full bg-black'>
-              {video.thumbnail && !isThumbnailImageError ? (
+              {thumbnailUrl ? (
                 <img
                   className='w-full h-full object-contain'
-                  src={video.thumbnail}
+                  src={thumbnailUrl}
                   alt='thumbnail'
                   onError={handleImageError}
                   loading='lazy'
                 />
-              ) : video.thumbnail &&
-                isThumbnailImageError &&
-                proxyThumbnailUrl &&
-                !isProxyThumbnailImageError ? (
+              ) : proxyThumbnailUrl && !isProxyThumbnailImageError ? (
                 <img
                   className='w-full h-full object-contain'
                   src={proxyThumbnailUrl}
@@ -541,9 +583,14 @@ encode speed ${video.download.ffmpeg.speed}`
         </div>
         <div className='grow-0 shrink p-2 overflow-hidden'>
           <h2
-            className='line-clamp-2 text-base font-bold min-h-[3rem] mb-2 break-all'
+            className='h-12 overflow-hidden text-base font-bold leading-6 mb-2 break-all'
             title={video.title || undefined}
           >
+            {uploadDate && (
+              <span className='float-right clear-right mt-6 ml-2 max-w-[45%] truncate text-right text-xs font-normal leading-6 text-muted-foreground whitespace-nowrap'>
+                {uploadDate}
+              </span>
+            )}
             {video.isLive && isRecording && (
               <div className='inline-flex items-center align-text-top text-xl text-error-foreground'>
                 <PingSvg />

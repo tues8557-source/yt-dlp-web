@@ -1,6 +1,6 @@
 import { VideoInfo } from '@/types/video';
 import numeral from 'numeral';
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { FcRemoveImage } from 'react-icons/fc';
 import { isPropsEquals } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -10,23 +10,36 @@ export const VideoListTableItem = memo(({ video }: { video: VideoInfo }) => {
   const isStandby = video.status === 'standby';
   const isFailed = video.status === 'failed';
   const isRecording = video.status === 'recording';
-  const [isThumbnailImageError, setThumbnailImageError] = useState(false);
+  const [isLocalThumbnailImageError, setLocalThumbnailImageError] = useState(false);
+  const [isRemoteThumbnailImageError, setRemoteThumbnailImageError] = useState(false);
+  const localThumbnailUrl = isCompleted ? `/api/thumbnail?uuid=${video.uuid}` : '';
+  const shouldUseLocalThumbnail = Boolean(localThumbnailUrl && !isLocalThumbnailImageError);
+  const thumbnailUrl = shouldUseLocalThumbnail
+    ? localThumbnailUrl
+    : !isRemoteThumbnailImageError
+      ? video.thumbnail || ''
+      : '';
   const handleImageError = () => {
-    setThumbnailImageError(true);
+    if (shouldUseLocalThumbnail) {
+      setLocalThumbnailImageError(true);
+    } else {
+      setRemoteThumbnailImageError(true);
+    }
   };
+
+  useEffect(() => {
+    setLocalThumbnailImageError(false);
+    setRemoteThumbnailImageError(false);
+  }, [video.uuid, video.thumbnail, video.localThumbnail]);
 
   return (
     <Card className='flex rounded-lg bg-card-nested border-none h-[100px] overflow-hidden'>
       <div className='shrink-0 basis-[100px]'>
         <figure className='relative w-full h-full bg-black/30'>
-          {video.thumbnail && !isThumbnailImageError ? (
+          {thumbnailUrl ? (
             <img
               className='w-full h-full object-cover'
-              src={
-                isCompleted && video.localThumbnail
-                  ? '/api/thumbnail?uuid=' + video.uuid
-                  : video.thumbnail
-              }
+              src={thumbnailUrl}
               alt={'thumbnail'}
               onError={handleImageError}
               loading='lazy'

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
+import path from 'path';
 import { CacheHelper } from '@/server/helpers/CacheHelper';
 import { lookup } from 'mime-types';
 import { ProcessHelper } from '@/server/helpers/ProcessHelper';
-import { VIDEO_LIST_FILE, DOWNLOAD_PATH, CACHE_PATH } from '@/server/constants';
+import { CACHE_FILE_PREFIX, VIDEO_LIST_FILE, DOWNLOAD_PATH, CACHE_PATH } from '@/server/constants';
 import type { VideoFileVariant, VideoInfo } from '@/types/video';
 import { UserPlaylistHelper } from '@/server/helpers/UserPlaylistHelper';
 
@@ -185,11 +186,15 @@ export async function DELETE(request: Request) {
           if (safariPath && safariPath !== videoInfo.file.path) {
             await fs.unlink(safariPath).catch(() => {});
           }
-          if (videoInfo.localThumbnail) {
-            if (videoInfo.localThumbnail.startsWith(DOWNLOAD_PATH)) {
-              await fs.unlink(videoInfo.localThumbnail);
+          const localThumbnail = videoInfo.localThumbnail;
+          if (localThumbnail) {
+            if (path.isAbsolute(localThumbnail)) {
+              await fs.unlink(localThumbnail);
             } else {
-              await fs.unlink(CACHE_PATH + '/thumbnails/' + videoInfo.localThumbnail);
+              const thumbnailFileName = localThumbnail.startsWith(CACHE_FILE_PREFIX)
+                ? localThumbnail
+                : `${CACHE_FILE_PREFIX}${localThumbnail}`;
+              await fs.unlink(path.join(CACHE_PATH, 'thumbnails', thumbnailFileName));
             }
           }
         }

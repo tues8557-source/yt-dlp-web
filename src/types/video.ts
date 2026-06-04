@@ -20,6 +20,7 @@ export interface VideoMetadata {
   title: string;
   description: string;
   thumbnail: string;
+  uploadDate: string | null;
   isLive: boolean;
   duration: number;
   best: {
@@ -63,6 +64,7 @@ export interface VideoInfo {
   title: string | null;
   description: string | null;
   thumbnail: string | null;
+  uploadDate: string | null;
   localThumbnail: string | null;
   status: 'standby' | 'failed' | 'downloading' | 'recording' | 'merging' | 'completed' | 'already';
   error?: string;
@@ -154,6 +156,7 @@ export type VideoFileVariant = Streams & {
 export interface FFmpegStreamsJson {
   programs: any[];
   streams: {
+    index?: number;
     width: number;
     height: number;
     r_frame_rate: string;
@@ -161,6 +164,9 @@ export interface FFmpegStreamsJson {
     codec_name: string;
     codec_type: string;
     duration: string;
+    disposition?: {
+      attached_pic?: number;
+    };
   }[];
   format?: {
     format_name?: string;

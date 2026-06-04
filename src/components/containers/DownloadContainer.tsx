@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Info, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import {
   Select,
@@ -415,11 +415,6 @@ const FileNameOption = () => {
   const handleClickEnableOutputFilenameCheckbox = () => {
     setEnableOutputFilename(!enableOutputFilename);
   };
-  const handleClickFilenameInfo = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toast.info('yt-dlp trims the filename body to 80 characters by default, excluding extension.');
-  };
 
   return (
     <div className='flex w-full flex-wrap items-start gap-2'>
@@ -436,15 +431,6 @@ const FileNameOption = () => {
           />
           <span className='text-sm'>Output filename</span>
         </Label>
-        <button
-          type='button'
-          className='inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-          aria-label='Filename trim length is 80 characters by default, excluding extension.'
-          title='Filename trim length is 80 characters by default, excluding extension.'
-          onClick={handleClickFilenameInfo}
-        >
-          <Info className='h-3.5 w-3.5 text-muted-foreground' />
-        </button>
       </div>
       <OutputFilenameEditorField
         value={!enableOutputFilename ? '' : outputFilename}
