@@ -61,6 +61,15 @@ const formatUploadDate = (uploadDate?: string | null) => {
   ].join('.');
 };
 
+const formatDuration = (duration?: string | number | null) => {
+  const seconds = Number(duration);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return '';
+  }
+
+  return numeral(seconds).format('00:00:00');
+};
+
 export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const [isValidating, setValidating] = useState(false);
   const [isMouseEntered, setMouseEntered] = useState(false);
@@ -95,6 +104,7 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
       ? video.thumbnail || ''
       : '';
   const uploadDate = formatUploadDate(video.uploadDate);
+  const fileDuration = formatDuration(video.file.duration);
 
   const [openDeleteList, setOpenDeleteList] = useState(false);
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
@@ -575,21 +585,24 @@ encode speed ${video.download.ffmpeg.speed}`
               {numeral(video.file.size).format('0.0b')}
             </div>
           )}
-          {!isMouseEntered && video.file.duration && (
+          {!isMouseEntered && fileDuration && (
             <div className='absolute right-1.5 bottom-1.5 text-xs text-white bg-black/80 py-0.5 px-1.5 rounded-md'>
-              {numeral(video.file.duration).format('00:00:00')}
+              {fileDuration}
             </div>
           )}
         </div>
         <div className='grow-0 shrink p-2 overflow-hidden'>
           <h2
-            className='h-12 overflow-hidden text-base font-bold leading-6 mb-2 break-all'
+            className='h-12 overflow-hidden text-base font-bold leading-6 mb-2 break-words'
             title={video.title || undefined}
           >
             {uploadDate && (
-              <span className='float-right clear-right mt-6 ml-2 max-w-[45%] truncate text-right text-xs font-normal leading-6 text-muted-foreground whitespace-nowrap'>
-                {uploadDate}
-              </span>
+              <>
+                <span className='float-right h-6 w-0' aria-hidden='true' />
+                <span className='float-right clear-right ml-2 max-w-[45%] truncate text-right text-xs font-normal leading-6 text-muted-foreground whitespace-nowrap'>
+                  {uploadDate}
+                </span>
+              </>
             )}
             {video.isLive && isRecording && (
               <div className='inline-flex items-center align-text-top text-xl text-error-foreground'>

@@ -170,6 +170,7 @@ export interface FFmpegStreamsJson {
   }[];
   format?: {
     format_name?: string;
+    duration?: string;
   };
 }
 

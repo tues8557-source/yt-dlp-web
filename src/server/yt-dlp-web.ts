@@ -1,4 +1,5 @@
 import { CacheHelper } from '@/server/helpers/CacheHelper';
+import { FFmpegHelper } from '@/server/helpers/FFmpegHelper';
 import { VideoInfo } from '@/types/video';
 import { spawn } from 'child_process';
 import { VIDEO_LIST_FILE } from '@/server/constants';
@@ -35,7 +36,8 @@ export async function getVideoList(_order?: OrderType): Promise<GetVideoList> {
 
     for await (const uuid of uuids) {
       try {
-        const videoInfo = await CacheHelper.get<VideoInfo>(uuid);
+        let videoInfo = await CacheHelper.get<VideoInfo>(uuid);
+        videoInfo = await fillMissingFileMetadata(videoInfo);
         if (videoInfo?.uuid) {
           orders.push(videoInfo.uuid);
           items[videoInfo.uuid] = videoInfo;
@@ -48,6 +50,44 @@ export async function getVideoList(_order?: OrderType): Promise<GetVideoList> {
       items
     });
   });
+}
+
+async function fillMissingFileMetadata(videoInfo?: VideoInfo) {
+  if (
+    !videoInfo?.uuid ||
+    videoInfo.status !== 'completed' ||
+    !videoInfo.file?.path ||
+    videoInfo.file.duration
+  ) {
+    return videoInfo;
+  }
+
+  try {
+    const streams = await new FFmpegHelper({ filePath: videoInfo.file.path }).getVideoStreams();
+    if (!streams?.duration) {
+      return videoInfo;
+    }
+
+    const nextVideoInfo = {
+      ...videoInfo,
+      file: {
+        ...videoInfo.file,
+        ...streams
+      },
+      files: {
+        ...videoInfo.files,
+        original: {
+          ...videoInfo.file,
+          ...streams,
+          source: 'original' as const
+        }
+      }
+    };
+    await CacheHelper.set(videoInfo.uuid, nextVideoInfo);
+    return nextVideoInfo;
+  } catch (e) {
+    return videoInfo;
+  }
 }
 
 export function getYtDlpVersion(): Promise<string> {

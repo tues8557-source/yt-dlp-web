@@ -22,7 +22,7 @@ export class FFmpegHelper {
       '-v',
       'error',
       '-show_entries',
-      'stream=width,height,color_primaries,r_frame_rate,codec_name,codec_type,duration:format=format_name',
+      'stream=width,height,color_primaries,r_frame_rate,codec_name,codec_type,duration:format=format_name,duration',
       '-of',
       'json',
       this.filePath
@@ -64,7 +64,7 @@ export class FFmpegHelper {
             colorPrimaries: streams.color_primaries,
             rFrameRate:
               total && duration ? Number(total) / Number(duration) || undefined : undefined,
-            duration: streams.duration
+            duration: streams.duration || json.format?.duration
           });
         } catch (e) {
           reject('streams not found');
