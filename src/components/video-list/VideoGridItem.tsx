@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import useSWR, { mutate } from 'swr';
 import numeral from 'numeral';
@@ -40,6 +40,8 @@ export type VideoGridItemProps = {
   video: VideoInfo;
 };
 
+const loadedThumbnailUrls = new Set<string>();
+
 const formatUploadDate = (uploadDate?: string | null) => {
   if (!uploadDate) {
     return '';
@@ -77,6 +79,7 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const [isRemoteThumbnailImageError, setRemoteThumbnailImageError] = useState(false);
   const [proxyThumbnailUrl, setProxyThumbnailUrl] = useState('');
   const [isProxyThumbnailImageError, setProxyThumbnailImageError] = useState(false);
+  const [, setLoadedThumbnailVersion] = useState(0);
   const [isNotSupportedCodec, setNotSupportedCodec] = useState(false);
   const [recommendedDownloadRetry, setRecommendedDownloadRetry] = useState(false);
   const [openPlaylistView, setOpenPlaylistView] = useState(false);
@@ -103,6 +106,10 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
     : shouldUseRemoteThumbnail
       ? video.thumbnail || ''
       : '';
+  const thumbnailWasLoaded = Boolean(thumbnailUrl && loadedThumbnailUrls.has(thumbnailUrl));
+  const proxyThumbnailWasLoaded = Boolean(
+    proxyThumbnailUrl && loadedThumbnailUrls.has(proxyThumbnailUrl)
+  );
   const uploadDate = formatUploadDate(video.uploadDate);
   const fileDuration = formatDuration(video.file.duration);
 
@@ -309,6 +316,16 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
       setProxyThumbnailUrl(`/api/image?url=${encodeURIComponent(thumbnailUrl)}`);
     }
   };
+  const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    const src =
+      event.currentTarget.getAttribute('src') ||
+      event.currentTarget.currentSrc ||
+      event.currentTarget.src;
+    if (!src) return;
+
+    loadedThumbnailUrls.add(src);
+    setLoadedThumbnailVersion((version) => version + 1);
+  };
   const handleProxyImageError = () => {
     setProxyThumbnailImageError(true);
   };
@@ -471,14 +488,17 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
             className={cn('w-full h-full', isMouseEntered ? 'hidden' : 'block')}
             onClick={handleMouseEnter}
           >
-            <figure className='relative w-full h-full bg-black'>
+            <figure className='relative w-full h-full bg-black/80'>
               {thumbnailUrl ? (
                 <img
                   className='w-full h-full object-contain'
                   src={thumbnailUrl}
                   alt='thumbnail'
                   onError={handleImageError}
-                  loading='lazy'
+                  onLoad={handleImageLoad}
+                  loading={thumbnailWasLoaded ? 'eager' : 'lazy'}
+                  decoding={thumbnailWasLoaded ? 'sync' : 'async'}
+                  fetchPriority={thumbnailWasLoaded ? 'high' : 'auto'}
                 />
               ) : proxyThumbnailUrl && !isProxyThumbnailImageError ? (
                 <img
@@ -486,7 +506,10 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
                   src={proxyThumbnailUrl}
                   alt='thumbnail'
                   onError={handleProxyImageError}
-                  loading='lazy'
+                  onLoad={handleImageLoad}
+                  loading={proxyThumbnailWasLoaded ? 'eager' : 'lazy'}
+                  decoding={proxyThumbnailWasLoaded ? 'sync' : 'async'}
+                  fetchPriority={proxyThumbnailWasLoaded ? 'high' : 'auto'}
                 />
               ) : (
                 <div className='w-full h-full min-h-[100px] flex items-center justify-center text-4xl bg-base-content/5 select-none '>
