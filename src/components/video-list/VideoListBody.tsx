@@ -4,7 +4,6 @@ import { useVideoListStore } from '@/store/videoList';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type VideoListProps } from '@/components/containers/VideoList';
 import { isPropsEquals } from '@/lib/utils';
-import { VirtuosoGrid } from 'react-virtuoso';
 import type { UserPlaylists } from '@/types/userPlaylist';
 
 const getUserPlaylistSectionId = (playlistId: string) => `user-playlist-${playlistId}`;
@@ -148,14 +147,11 @@ function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
           <span className='text-3xl text-muted-foreground opacity-50 select-none'>Empty</span>
         </div>
       )}
-      <VirtuosoGrid
-        useWindowScroll
-        style={{ height: '100%', width: '100%' }}
-        data={orders}
-        listClassName={gridClassName}
-        itemClassName=''
-        itemContent={(index, uuid) => <VideoGridItemWithMemo key={uuid} video={items[uuid]} />}
-      />
+      <div className={gridClassName}>
+        {orders.map((uuid) => (
+          <VideoGridItemWithMemo key={uuid} video={items[uuid]} />
+        ))}
+      </div>
     </>
   ) : (
     <div className={gridClassName}>
