@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { VideoGridItem } from '@/components/video-list/VideoGridItem';
 import { useVideoListStore } from '@/store/videoList';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,6 +7,10 @@ import { isPropsEquals } from '@/lib/utils';
 import type { UserPlaylists } from '@/types/userPlaylist';
 
 const getUserPlaylistSectionId = (playlistId: string) => `user-playlist-${playlistId}`;
+const GRID_CLASS_NAME =
+  'grid gap-x-3 gap-y-6 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3';
+const ESTIMATED_GRID_ROW_HEIGHT = 430;
+const VIRTUAL_GRID_OVERSCAN_ROWS = 2;
 
 type VideoListBodyProps = {
   isLoading: boolean;
@@ -59,8 +63,6 @@ export const VideoListBody = ({
 };
 
 function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: VideoListBodyProps) {
-  const gridClassName =
-    'grid gap-x-3 gap-y-6 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3';
   const visibleUuids = new Set(orders || []);
 
   if (isLoading || !items || !orders || !userPlaylists) {
@@ -125,11 +127,7 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
               <h2 className='text-lg font-bold'>{playlist.name}</h2>
               <span className='text-sm text-muted-foreground'>({playlistUuids.length})</span>
             </div>
-            <div className={gridClassName}>
-              {playlistUuids.map((uuid) => (
-                <VideoGridItemWithMemo key={`${playlistId}-${uuid}`} video={items[uuid]} />
-              ))}
-            </div>
+            <VirtualizedVideoGrid items={items} orders={playlistUuids} keyPrefix={playlistId} />
           </section>
         );
       })}
@@ -138,8 +136,6 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
 }
 
 function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
-  const gridClassName =
-    'grid gap-x-3 gap-y-6 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3';
   return !isLoading && items && orders ? (
     <>
       {orders.length === 0 && (
@@ -147,14 +143,10 @@ function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
           <span className='text-3xl text-muted-foreground opacity-50 select-none'>Empty</span>
         </div>
       )}
-      <div className={gridClassName}>
-        {orders.map((uuid) => (
-          <VideoGridItemWithMemo key={uuid} video={items[uuid]} />
-        ))}
-      </div>
+      <VirtualizedVideoGrid items={items} orders={orders} />
     </>
   ) : (
-    <div className={gridClassName}>
+    <div className={GRID_CLASS_NAME}>
       <div className='space-y-2'>
         <Skeleton className='aspect-video bg-card-nested' />
         <Skeleton className='h-3.5 bg-card-nested' />
@@ -175,6 +167,102 @@ function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
         <Skeleton className='h-3.5 bg-card-nested' />
         <Skeleton className='h-3.5 bg-card-nested' />
       </div>
+    </div>
+  );
+}
+
+function VirtualizedVideoGrid({
+  items,
+  orders,
+  keyPrefix
+}: {
+  items: NonNullable<VideoListProps['items']>;
+  orders: string[];
+  keyPrefix?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [columnCount, setColumnCount] = useState(1);
+  const [viewport, setViewport] = useState({
+    height: typeof window === 'undefined' ? 800 : window.innerHeight,
+    scrollY: typeof window === 'undefined' ? 0 : window.scrollY
+  });
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setViewport({
+        height: window.innerHeight,
+        scrollY: window.scrollY
+      });
+    };
+
+    updateViewport();
+    window.addEventListener('scroll', updateViewport, { passive: true });
+    window.addEventListener('resize', updateViewport);
+
+    return () => {
+      window.removeEventListener('scroll', updateViewport);
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateColumnCount = () => {
+      const columns = window
+        .getComputedStyle(container)
+        .gridTemplateColumns.split(' ')
+        .filter(Boolean).length;
+      setColumnCount(Math.max(1, columns));
+    };
+
+    updateColumnCount();
+    const resizeObserver = new ResizeObserver(updateColumnCount);
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  const totalRows = Math.ceil(orders.length / columnCount);
+  const virtualGrid = useMemo(() => {
+    const containerTop =
+      (containerRef.current?.getBoundingClientRect().top || 0) + viewport.scrollY;
+    const relativeScrollTop = Math.max(0, viewport.scrollY - containerTop);
+    const startRow = Math.max(
+      0,
+      Math.floor(relativeScrollTop / ESTIMATED_GRID_ROW_HEIGHT) - VIRTUAL_GRID_OVERSCAN_ROWS
+    );
+    const visibleRowCount =
+      Math.ceil(viewport.height / ESTIMATED_GRID_ROW_HEIGHT) + VIRTUAL_GRID_OVERSCAN_ROWS * 2;
+    const endRow = Math.min(totalRows, startRow + visibleRowCount);
+    const startIndex = startRow * columnCount;
+    const endIndex = Math.min(orders.length, endRow * columnCount);
+
+    return {
+      visibleOrders: orders.slice(startIndex, endIndex),
+      paddingTop: startRow * ESTIMATED_GRID_ROW_HEIGHT,
+      paddingBottom: Math.max(0, (totalRows - endRow) * ESTIMATED_GRID_ROW_HEIGHT)
+    };
+  }, [columnCount, orders, totalRows, viewport]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={GRID_CLASS_NAME}
+      style={{
+        paddingTop: virtualGrid.paddingTop,
+        paddingBottom: virtualGrid.paddingBottom
+      }}
+    >
+      {virtualGrid.visibleOrders.map((uuid) => (
+        <VideoGridItemWithMemo
+          key={keyPrefix ? `${keyPrefix}-${uuid}` : uuid}
+          video={items[uuid]}
+        />
+      ))}
     </div>
   );
 }

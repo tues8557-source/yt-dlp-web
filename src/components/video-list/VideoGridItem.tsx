@@ -96,20 +96,33 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const isRecording = video.status === 'recording';
   const isAlready = video.status === 'already';
   const [isSelected, setSelected] = useState(false);
-  const localThumbnailUrl = isCompleted ? `/api/thumbnail?uuid=${video.uuid}` : '';
-  const shouldUseLocalThumbnail = Boolean(localThumbnailUrl && !isLocalThumbnailImageError);
+  const localThumbnailUrl = isCompleted
+    ? `/api/thumbnail?uuid=${video.uuid}&v=${video.updatedAt || ''}`
+    : '';
+  const shouldPreferLocalThumbnail =
+    video.thumbnailSource === 'local' || video.thumbnailSource === 'custom';
+  const canUseLocalThumbnail = Boolean(localThumbnailUrl && !isLocalThumbnailImageError);
+  const shouldUseLocalThumbnail = Boolean(canUseLocalThumbnail && shouldPreferLocalThumbnail);
   const shouldUseRemoteThumbnail = Boolean(
     video.thumbnail && !shouldUseLocalThumbnail && !isRemoteThumbnailImageError
   );
-  const thumbnailUrl = shouldUseLocalThumbnail
-    ? localThumbnailUrl
-    : shouldUseRemoteThumbnail
-      ? video.thumbnail || ''
-      : '';
-  const thumbnailWasLoaded = Boolean(thumbnailUrl && loadedThumbnailUrls.has(thumbnailUrl));
-  const proxyThumbnailWasLoaded = Boolean(
-    proxyThumbnailUrl && loadedThumbnailUrls.has(proxyThumbnailUrl)
+  const shouldUseProxyThumbnail = Boolean(
+    proxyThumbnailUrl && !shouldUseRemoteThumbnail && !isProxyThumbnailImageError
   );
+  const shouldFallbackToLocalThumbnail = Boolean(
+    canUseLocalThumbnail &&
+      !shouldUseLocalThumbnail &&
+      !shouldUseRemoteThumbnail &&
+      !shouldUseProxyThumbnail
+  );
+  const thumbnailUrl = shouldUseRemoteThumbnail
+    ? video.thumbnail || ''
+    : shouldUseProxyThumbnail
+      ? proxyThumbnailUrl
+      : shouldUseLocalThumbnail || shouldFallbackToLocalThumbnail
+        ? localThumbnailUrl
+        : '';
+  const thumbnailWasLoaded = Boolean(thumbnailUrl && loadedThumbnailUrls.has(thumbnailUrl));
   const uploadDate = formatUploadDate(video.uploadDate);
   const fileDuration = formatDuration(video.file.duration);
 
@@ -306,14 +319,19 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   };
 
   const handleImageError = () => {
-    if (shouldUseLocalThumbnail) {
-      setLocalThumbnailImageError(true);
+    if (shouldUseRemoteThumbnail) {
+      setRemoteThumbnailImageError(true);
+      setProxyThumbnailUrl(`/api/image?url=${encodeURIComponent(thumbnailUrl)}`);
       return;
     }
 
-    setRemoteThumbnailImageError(true);
-    if (thumbnailUrl.startsWith('http')) {
-      setProxyThumbnailUrl(`/api/image?url=${encodeURIComponent(thumbnailUrl)}`);
+    if (shouldUseProxyThumbnail) {
+      setProxyThumbnailImageError(true);
+      return;
+    }
+
+    if (shouldUseLocalThumbnail || shouldFallbackToLocalThumbnail) {
+      setLocalThumbnailImageError(true);
     }
   };
   const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
@@ -326,10 +344,6 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
     loadedThumbnailUrls.add(src);
     setLoadedThumbnailVersion((version) => version + 1);
   };
-  const handleProxyImageError = () => {
-    setProxyThumbnailImageError(true);
-  };
-
   const handleClickVideo = async () => {
     if (!isCompleted) {
       return;
@@ -405,7 +419,7 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
     setRemoteThumbnailImageError(false);
     setProxyThumbnailUrl('');
     setProxyThumbnailImageError(false);
-  }, [video.uuid, video.thumbnail, video.localThumbnail]);
+  }, [video.uuid, video.thumbnail, video.localThumbnail, video.thumbnailSource, video.updatedAt]);
 
   useEffect(() => {
     if (video?.uuid) {
@@ -499,17 +513,6 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
                   loading={thumbnailWasLoaded ? 'eager' : 'lazy'}
                   decoding={thumbnailWasLoaded ? 'sync' : 'async'}
                   fetchPriority={thumbnailWasLoaded ? 'high' : 'auto'}
-                />
-              ) : proxyThumbnailUrl && !isProxyThumbnailImageError ? (
-                <img
-                  className='w-full h-full object-contain'
-                  src={proxyThumbnailUrl}
-                  alt='thumbnail'
-                  onError={handleProxyImageError}
-                  onLoad={handleImageLoad}
-                  loading={proxyThumbnailWasLoaded ? 'eager' : 'lazy'}
-                  decoding={proxyThumbnailWasLoaded ? 'sync' : 'async'}
-                  fetchPriority={proxyThumbnailWasLoaded ? 'high' : 'auto'}
                 />
               ) : (
                 <div className='w-full h-full min-h-[100px] flex items-center justify-center text-4xl bg-base-content/5 select-none '>

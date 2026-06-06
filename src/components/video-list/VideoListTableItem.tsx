@@ -12,25 +12,39 @@ export const VideoListTableItem = memo(({ video }: { video: VideoInfo }) => {
   const isRecording = video.status === 'recording';
   const [isLocalThumbnailImageError, setLocalThumbnailImageError] = useState(false);
   const [isRemoteThumbnailImageError, setRemoteThumbnailImageError] = useState(false);
-  const localThumbnailUrl = isCompleted ? `/api/thumbnail?uuid=${video.uuid}` : '';
-  const shouldUseLocalThumbnail = Boolean(localThumbnailUrl && !isLocalThumbnailImageError);
-  const thumbnailUrl = shouldUseLocalThumbnail
-    ? localThumbnailUrl
-    : !isRemoteThumbnailImageError
-      ? video.thumbnail || ''
+  const localThumbnailUrl = isCompleted
+    ? `/api/thumbnail?uuid=${video.uuid}&v=${video.updatedAt || ''}`
+    : '';
+  const shouldPreferLocalThumbnail =
+    video.thumbnailSource === 'local' || video.thumbnailSource === 'custom';
+  const canUseLocalThumbnail = Boolean(localThumbnailUrl && !isLocalThumbnailImageError);
+  const shouldUseLocalThumbnail = Boolean(canUseLocalThumbnail && shouldPreferLocalThumbnail);
+  const shouldUseRemoteThumbnail = Boolean(
+    video.thumbnail && !shouldUseLocalThumbnail && !isRemoteThumbnailImageError
+  );
+  const shouldFallbackToLocalThumbnail = Boolean(
+    canUseLocalThumbnail && !shouldUseLocalThumbnail && !shouldUseRemoteThumbnail
+  );
+  const thumbnailUrl = shouldUseRemoteThumbnail
+    ? video.thumbnail || ''
+    : shouldUseLocalThumbnail || shouldFallbackToLocalThumbnail
+      ? localThumbnailUrl
       : '';
   const handleImageError = () => {
-    if (shouldUseLocalThumbnail) {
-      setLocalThumbnailImageError(true);
-    } else {
+    if (shouldUseRemoteThumbnail) {
       setRemoteThumbnailImageError(true);
+      return;
+    }
+
+    if (shouldUseLocalThumbnail || shouldFallbackToLocalThumbnail) {
+      setLocalThumbnailImageError(true);
     }
   };
 
   useEffect(() => {
     setLocalThumbnailImageError(false);
     setRemoteThumbnailImageError(false);
-  }, [video.uuid, video.thumbnail, video.localThumbnail]);
+  }, [video.uuid, video.thumbnail, video.localThumbnail, video.thumbnailSource, video.updatedAt]);
 
   return (
     <Card className='flex rounded-lg bg-card-nested border-none h-[100px] overflow-hidden'>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
@@ -25,7 +25,7 @@ import {
   OutputFilenameEditorField,
   stripOutputFilenameExtension
 } from '@/components/OutputFilenameEditor';
-import { Copy, LinkIcon } from 'lucide-react';
+import { Copy, Image as ImageIcon, LinkIcon, Upload } from 'lucide-react';
 
 export type DownloadOptionsInfoDialogProps = {
   open: boolean;
@@ -66,6 +66,10 @@ export function DownloadOptionsInfoDialog({
   const [enableProxy, setEnableProxy] = useState(video.enableProxy);
   const [proxyAddress, setProxyAddress] = useState(video.proxyAddress || '');
   const [copyStatus, setCopyStatus] = useState<'copied' | 'failed' | ''>('');
+  const [isExtractingThumbnail, setExtractingThumbnail] = useState(false);
+  const [isUploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const thumbnailFileInputRef = useRef<HTMLInputElement>(null);
+  const canUpdateThumbnail = video.status === 'completed' && video.type !== 'playlist';
 
   useEffect(() => {
     if (!copyStatus) return;
@@ -140,6 +144,66 @@ export function DownloadOptionsInfoDialog({
     toast.success(result?.status === 'already' ? 'Already been downloaded' : 'Download Retryed');
     mutate('/api/list');
     onClose();
+  };
+
+  const handleClickExtractThumbnail = async () => {
+    if (isExtractingThumbnail || !canUpdateThumbnail) return;
+    setExtractingThumbnail(true);
+
+    const result = await axios
+      .post('/api/thumbnail', null, {
+        params: {
+          uuid: video.uuid,
+          action: 'extract'
+        }
+      })
+      .then((res) => res.data)
+      .catch((res) => res.response?.data || { error: 'Failed to extract thumbnail.' });
+
+    setExtractingThumbnail(false);
+
+    if (!result?.success || result?.error) {
+      toast.error(result?.error || 'Failed to extract thumbnail.');
+      return;
+    }
+
+    toast.success('Updated preview image from the downloaded video.');
+    mutate('/api/list');
+  };
+
+  const handleClickUploadThumbnail = () => {
+    if (isUploadingThumbnail || !canUpdateThumbnail) return;
+    thumbnailFileInputRef.current?.click();
+  };
+
+  const handleChangeThumbnailFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || isUploadingThumbnail || !canUpdateThumbnail) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingThumbnail(true);
+
+    const result = await axios
+      .post('/api/thumbnail', formData, {
+        params: {
+          uuid: video.uuid,
+          action: 'upload'
+        }
+      })
+      .then((res) => res.data)
+      .catch((res) => res.response?.data || { error: 'Failed to upload thumbnail.' });
+
+    setUploadingThumbnail(false);
+
+    if (!result?.success || result?.error) {
+      toast.error(result?.error || 'Failed to upload thumbnail.');
+      return;
+    }
+
+    toast.success('Updated preview image.');
+    mutate('/api/list');
   };
 
   return (
@@ -283,6 +347,48 @@ export function DownloadOptionsInfoDialog({
           </div>
           <div className='opacity-60 mt-2'>
             The cookie is used as the value currently stored on the server.
+          </div>
+          <div className='mt-4 space-y-3 rounded-lg border bg-background/60 p-4'>
+            <div>
+              <div className='font-semibold'>Preview image</div>
+              <div className='text-xs text-muted-foreground'>
+                Use a thumbnail from the downloaded video, or upload a custom image.
+              </div>
+            </div>
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                disabled={!canUpdateThumbnail || isExtractingThumbnail}
+                onClick={handleClickExtractThumbnail}
+              >
+                <ImageIcon className='mr-2 h-4 w-4' />
+                {isExtractingThumbnail ? 'Extracting...' : 'Use video thumbnail'}
+              </Button>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                disabled={!canUpdateThumbnail || isUploadingThumbnail}
+                onClick={handleClickUploadThumbnail}
+              >
+                <Upload className='mr-2 h-4 w-4' />
+                {isUploadingThumbnail ? 'Uploading...' : 'Upload image'}
+              </Button>
+              <input
+                ref={thumbnailFileInputRef}
+                className='hidden'
+                type='file'
+                accept='image/jpeg,image/png,image/webp,image/gif'
+                onChange={handleChangeThumbnailFile}
+              />
+            </div>
+            {!canUpdateThumbnail && (
+              <div className='text-xs text-muted-foreground'>
+                Preview images can be updated after a video download is completed.
+              </div>
+            )}
           </div>
           {isEditable && (
             <div className='mt-4 space-y-4 rounded-lg border bg-background/60 p-4'>

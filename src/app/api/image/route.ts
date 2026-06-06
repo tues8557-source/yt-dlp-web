@@ -14,15 +14,19 @@ export async function GET(request: Request) {
     }
 
     const contentType = image.headers.get('Content-Type');
+    const contentLength = image.headers.get('Content-Length');
 
-    const imageBase64 = await image.arrayBuffer();
+    const headers: HeadersInit = {
+      'Content-Type': contentType || 'image/png',
+      'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800'
+    };
 
-    return new Response(imageBase64, {
-      headers: {
-        'Content-Type': contentType || 'image/png',
-        'Content-Length': String(imageBase64.byteLength || 0),
-        'Cache-Control': 'public, max-age=600'
-      },
+    if (contentLength) {
+      headers['Content-Length'] = contentLength;
+    }
+
+    return new Response(image.body, {
+      headers,
       status: 200
     });
   } catch (error) {

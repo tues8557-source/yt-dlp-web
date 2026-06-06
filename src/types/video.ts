@@ -66,6 +66,7 @@ export interface VideoInfo {
   thumbnail: string | null;
   uploadDate: string | null;
   localThumbnail: string | null;
+  thumbnailSource?: 'remote' | 'local' | 'custom';
   status: 'standby' | 'failed' | 'downloading' | 'recording' | 'merging' | 'completed' | 'already';
   error?: string;
   isLive: boolean;
