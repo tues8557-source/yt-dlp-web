@@ -10,6 +10,7 @@ const MOUNT_TEST = 'mount-test';
 async function checkCacheFolderIsAccessible() {
   const filePath = path.resolve(CACHE_PATH, WRITE_TEST_FILE);
   try {
+    await fs.mkdir(CACHE_PATH, { recursive: true });
     const cacheData = lruCache.get(WRITE_TEST_FILE);
 
     if (cacheData) {
@@ -34,6 +35,7 @@ async function checkCacheFolderIsAccessible() {
 async function checkDownloadFolderIsAccessible() {
   const filePath = path.resolve(DOWNLOAD_PATH, WRITE_TEST_FILE);
   try {
+    await fs.mkdir(DOWNLOAD_PATH, { recursive: true });
     const cacheData = lruCache.get(WRITE_TEST_FILE);
 
     if (cacheData) {
@@ -78,6 +80,10 @@ export async function checkRequiredFoldersAreAccessible() {
 
 export async function checkRequiredFoldersAreMounted() {
   try {
+    if (DOWNLOAD_PATH !== path.join('/', 'downloads') || CACHE_PATH !== path.join('/', 'cache')) {
+      return true;
+    }
+
     const cacheData = lruCache.get(MOUNT_TEST);
 
     if (cacheData) {

@@ -24,6 +24,14 @@ export class UserPlaylistHelper {
     }
 
     const playlists = await UserPlaylistHelper.getAll();
+    const alreadyExists = playlists.orders.some((playlistId) => {
+      const playlist = playlists.items[playlistId];
+      return playlist?.name.trim().toLocaleLowerCase() === trimmedName.toLocaleLowerCase();
+    });
+    if (alreadyExists) {
+      throw 'A playlist with this name already exists';
+    }
+
     const now = Date.now();
     const playlist: UserPlaylist = {
       id: randomUUID(),
@@ -65,6 +73,23 @@ export class UserPlaylistHelper {
       }
     }
 
+    await CacheHelper.set(USER_PLAYLISTS_FILE, playlists);
+
+    return playlists;
+  }
+
+  static async delete(playlistId: string) {
+    if (!playlistId) {
+      throw 'playlistId is required';
+    }
+
+    const playlists = await UserPlaylistHelper.getAll();
+    if (!playlists.items[playlistId]) {
+      throw 'Playlist not found';
+    }
+
+    playlists.orders = playlists.orders.filter((id) => id !== playlistId);
+    delete playlists.items[playlistId];
     await CacheHelper.set(USER_PLAYLISTS_FILE, playlists);
 
     return playlists;

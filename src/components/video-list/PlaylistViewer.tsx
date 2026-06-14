@@ -32,7 +32,16 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
       url: playlistVideo.url || '',
       playlistVideoUuid: playlistVideo.uuid,
       title: playlistVideo.name || '',
-      type: video.type
+      filename: playlistVideo.name,
+      type: video.type,
+      playlistTitle: video.title,
+      playlist: video.playlist,
+      duration: playlistVideo.duration,
+      height: playlistVideo.height,
+      rFrameRate: playlistVideo.rFrameRate,
+      codecName: playlistVideo.codecName,
+      colorPrimaries: playlistVideo.colorPrimaries,
+      containerName: playlistVideo.containerName
     });
   };
 

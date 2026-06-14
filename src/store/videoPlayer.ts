@@ -3,12 +3,14 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { shallow } from 'zustand/shallow';
 import type { VideoPlayerVideoInfo } from '@/components/modules/VideoPlayer';
 
+export type VideoRepeatMode = 'none' | 'one' | 'all';
+
 interface VideoPlayerState {
   openVideoPlayer: boolean;
   isNotSupportedCodec: boolean;
   isWideScreen: boolean;
   isTopSticky: boolean;
-  isLoopVideo: boolean;
+  repeatMode: VideoRepeatMode;
   videoUuid: string;
   playlistVideoUuid: string;
   video: VideoPlayerVideoInfo | null;
@@ -24,7 +26,7 @@ export interface VideoPlayerStore extends VideoPlayerState {
   setNotSupportedCodec: (isNotSupportedCodec: boolean) => void;
   setWideScreen: (isWideScreen: boolean) => void;
   setTopSticky: (isTopSticky: boolean) => void;
-  setLoopVideo: (isLoopVideo: boolean) => void;
+  setRepeatMode: (repeatMode: VideoRepeatMode) => void;
 }
 
 const initialState: VideoPlayerState = {
@@ -32,7 +34,7 @@ const initialState: VideoPlayerState = {
   isNotSupportedCodec: false,
   isWideScreen: false,
   isTopSticky: false,
-  isLoopVideo: false,
+  repeatMode: 'none',
   video: null,
   videoUuid: '',
   playlistVideoUuid: '',
@@ -85,8 +87,8 @@ export const useVideoPlayerStore = createWithEqualityFn(
       setTopSticky(isTopSticky) {
         set({ isTopSticky });
       },
-      setLoopVideo(isLoopVideo) {
-        set({ isLoopVideo });
+      setRepeatMode(repeatMode) {
+        set({ repeatMode });
       }
     }),
     {
@@ -98,6 +100,17 @@ export const useVideoPlayerStore = createWithEqualityFn(
             ([key]) => !['openVideoPlayer', 'isNotSupportedCodec'].includes(key)
           )
         ) as VideoPlayerStore,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<VideoPlayerStore> & { isLoopVideo?: boolean };
+        if (!state.repeatMode && state.isLoopVideo) {
+          return {
+            ...state,
+            repeatMode: 'one'
+          } as VideoPlayerStore;
+        }
+
+        return state as VideoPlayerStore;
+      },
       version: 0.1,
       skipHydration: true
     }

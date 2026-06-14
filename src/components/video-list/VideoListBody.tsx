@@ -3,9 +3,10 @@ import { VirtuosoGrid } from 'react-virtuoso';
 import { VideoGridItem } from '@/components/video-list/VideoGridItem';
 import { useVideoListStore } from '@/store/videoList';
 import { Skeleton } from '@/components/ui/skeleton';
-import { type VideoListProps } from '@/components/containers/VideoList';
+import { type VideoListProps, type VideoListViewMode } from '@/components/containers/VideoList';
 import { isPropsEquals } from '@/lib/utils';
 import type { UserPlaylists } from '@/types/userPlaylist';
+import type { VideoPlayerQueueItem } from '@/components/modules/VideoPlayer';
 
 const getUserPlaylistSectionId = (playlistId: string) => `user-playlist-${playlistId}`;
 const GRID_CLASS_NAME =
@@ -28,9 +29,10 @@ const virtuosoGridComponents = {
 virtuosoGridComponents.List.displayName = 'VirtuosoVideoGridList';
 
 type VideoListBodyProps = {
+  highlightPlaylistButtons?: boolean;
   isLoading: boolean;
   userPlaylists?: UserPlaylists;
-  viewMode: 'default' | 'playlists';
+  viewMode: VideoListViewMode;
 } & VideoListProps;
 
 export const VideoListBody = ({
@@ -38,7 +40,8 @@ export const VideoListBody = ({
   orders,
   userPlaylists,
   viewMode,
-  isLoading
+  isLoading,
+  highlightPlaylistButtons
 }: VideoListBodyProps) => {
   const { layoutMode } = useVideoListStore();
 
@@ -60,6 +63,7 @@ export const VideoListBody = ({
           userPlaylists={userPlaylists}
           viewMode={viewMode}
           isLoading={isLoading}
+          highlightPlaylistButtons={highlightPlaylistButtons}
         />
       ) : (
         <VideoGridViewer
@@ -68,6 +72,7 @@ export const VideoListBody = ({
           userPlaylists={userPlaylists}
           viewMode={viewMode}
           isLoading={isLoading}
+          highlightPlaylistButtons={highlightPlaylistButtons}
         />
       );
     }
@@ -77,7 +82,13 @@ export const VideoListBody = ({
   }
 };
 
-function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: VideoListBodyProps) {
+function UserPlaylistGridViewer({
+  items,
+  orders,
+  userPlaylists,
+  isLoading,
+  highlightPlaylistButtons
+}: VideoListBodyProps) {
   const visibleUuids = new Set(orders || []);
 
   if (isLoading || !items || !orders || !userPlaylists) {
@@ -86,8 +97,9 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
         items={items}
         orders={orders}
         userPlaylists={userPlaylists}
-        viewMode='default'
+        viewMode='all'
         isLoading={isLoading}
+        highlightPlaylistButtons={highlightPlaylistButtons}
       />
     );
   }
@@ -132,6 +144,11 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
       {visiblePlaylistIds.map((playlistId) => {
         const playlist = userPlaylists.items[playlistId];
         const playlistUuids = playlist.uuids.filter((uuid) => visibleUuids.has(uuid) && items[uuid]);
+        const playlistQueue = playlistUuids
+          .map((uuid) => items[uuid])
+          .filter((item) => item?.status === 'completed' && item.type !== 'playlist' && item.file?.path)
+          .map(toVideoPlayerQueueItem);
+
         return (
           <section
             key={playlistId}
@@ -142,7 +159,14 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
               <h2 className='text-lg font-bold'>{playlist.name}</h2>
               <span className='text-sm text-muted-foreground'>({playlistUuids.length})</span>
             </div>
-            <VideoGrid items={items} orders={playlistUuids} keyPrefix={playlistId} />
+            <VideoGrid
+              items={items}
+              orders={playlistUuids}
+              keyPrefix={playlistId}
+              highlightPlaylistButtons={highlightPlaylistButtons}
+              queueTitle={playlist.name}
+              queue={playlistQueue}
+            />
           </section>
         );
       })}
@@ -150,7 +174,12 @@ function UserPlaylistGridViewer({ items, orders, userPlaylists, isLoading }: Vid
   );
 }
 
-function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
+function VideoGridViewer({
+  items,
+  orders,
+  isLoading,
+  highlightPlaylistButtons
+}: VideoListBodyProps) {
   return !isLoading && items && orders ? (
     <>
       {orders.length === 0 && (
@@ -158,7 +187,11 @@ function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
           <span className='text-3xl text-muted-foreground opacity-50 select-none'>Empty</span>
         </div>
       )}
-      <VideoGrid items={items} orders={orders} />
+      <VideoGrid
+        items={items}
+        orders={orders}
+        highlightPlaylistButtons={highlightPlaylistButtons}
+      />
     </>
   ) : (
     <div className={GRID_CLASS_NAME}>
@@ -189,11 +222,17 @@ function VideoGridViewer({ items, orders, isLoading }: VideoListBodyProps) {
 function VideoGrid({
   items,
   orders,
-  keyPrefix
+  highlightPlaylistButtons,
+  keyPrefix,
+  queueTitle,
+  queue
 }: {
   items: NonNullable<VideoListProps['items']>;
   orders: string[];
+  highlightPlaylistButtons?: boolean;
   keyPrefix?: string;
+  queueTitle?: string | null;
+  queue?: VideoPlayerQueueItem[];
 }) {
   return (
     <VirtuosoGrid
@@ -202,9 +241,34 @@ function VideoGrid({
       data={orders}
       computeItemKey={(_, uuid) => (keyPrefix ? `${keyPrefix}-${uuid}` : uuid)}
       increaseViewportBy={VIRTUOSO_INCREASE_VIEWPORT_BY}
-      itemContent={(_, uuid) => <VideoGridItemWithMemo video={items[uuid]} />}
+      itemContent={(_, uuid) => (
+        <VideoGridItemWithMemo
+          video={items[uuid]}
+          items={items}
+          highlightPlaylistButton={highlightPlaylistButtons}
+          queueTitle={queueTitle}
+          queue={queue}
+        />
+      )}
     />
   );
 }
 
 const VideoGridItemWithMemo = memo(VideoGridItem, isPropsEquals);
+
+function toVideoPlayerQueueItem(video: NonNullable<VideoListProps['items']>[string]): VideoPlayerQueueItem {
+  return {
+    uuid: video.uuid,
+    title: video.title,
+    url: video.url,
+    uploadDate: video.uploadDate,
+    filename: video.file?.name,
+    size: video.file?.size,
+    duration: video.file?.duration,
+    height: video.file?.height,
+    rFrameRate: video.file?.rFrameRate,
+    codecName: video.file?.codecName,
+    colorPrimaries: video.file?.colorPrimaries,
+    containerName: video.file?.containerName
+  };
+}

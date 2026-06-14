@@ -32,3 +32,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error }, { status: 400 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const urlObject = new URL(request.url);
+    const playlistId = String(urlObject.searchParams.get('id') || '');
+    return NextResponse.json(await UserPlaylistHelper.delete(playlistId));
+  } catch (error) {
+    return NextResponse.json({ error }, { status: 400 });
+  }
+}

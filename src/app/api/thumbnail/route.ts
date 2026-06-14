@@ -96,6 +96,20 @@ export async function POST(request: Request) {
       });
     }
 
+    if (action === 'remove') {
+      await removeLocalThumbnail(videoInfo);
+      videoInfo.localThumbnail = null;
+      videoInfo.thumbnailSource = undefined;
+      videoInfo.updatedAt = Date.now();
+      await CacheHelper.set(uuid, videoInfo);
+
+      return NextJson({
+        success: true,
+        localThumbnail: videoInfo.localThumbnail,
+        thumbnailSource: videoInfo.thumbnailSource
+      });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
     if (!(file instanceof File)) {
@@ -156,6 +170,15 @@ async function getOrCreateThumbnailPath(uuid: string, videoInfo: VideoInfo) {
   } catch (e) {}
 
   return extractThumbnailFromVideo(uuid, videoInfo);
+}
+
+async function removeLocalThumbnail(videoInfo: VideoInfo) {
+  const localThumbnail = videoInfo.localThumbnail;
+  if (!localThumbnail) return;
+
+  try {
+    await fs.unlink(getThumbnailFilePath(localThumbnail));
+  } catch (e) {}
 }
 
 async function extractThumbnailFromVideo(

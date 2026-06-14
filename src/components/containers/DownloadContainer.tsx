@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { toast } from 'react-toastify';
 import { IoClose } from 'react-icons/io5';
@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import {
   Select,
@@ -137,27 +137,63 @@ type DownloadFormProps = {
 };
 
 const DownloadForm = memo(({ onSubmit }: DownloadFormProps) => {
+  const [openAdvancedOptions, setOpenAdvancedOptions] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const collapseWhenStacked = () => {
+      if (!mediaQuery.matches) {
+        setOpenAdvancedOptions(false);
+      }
+    };
+
+    collapseWhenStacked();
+    mediaQuery.addEventListener('change', collapseWhenStacked);
+    return () => mediaQuery.removeEventListener('change', collapseWhenStacked);
+  }, []);
+
+  const handleClickAdvancedOptions = () => {
+    setOpenAdvancedOptions((open) => !open);
+  };
+
   return (
     <form className='flex flex-col py-2 gap-y-2' method='GET' onSubmit={onSubmit}>
       <UrlFieldOption />
       <ResolutionAndCodecOptions />
-      <CookieOption />
-      <Card className='p-2 rounded-md bg-card-nested border-none'>
-        <CardDescription className='text-warning-foreground text-sm mb-1'>
-          The options below are excluded for <b>livestreams</b> and <b>playlist</b> downloads.
-        </CardDescription>
-        <div className='flex flex-col gap-y-2'>
-          <FileNameOption />
-          <CutVideoOption />
-          <EmbedSubtitlesOption />
-          <EmbedThumbnailOption />
-          <EmbedChapterMarkersOption />
-          <EmbedMetadataOption />
-          <EmbedVideoThumbnailOption />
-        </div>
-      </Card>
-      <LiveFromStartOption />
-      <ProxyOption />
+      <Button
+        type='button'
+        variant='secondary'
+        size='sm'
+        className='h-8 justify-between rounded-full px-3 lg:hidden'
+        aria-expanded={openAdvancedOptions}
+        onClick={handleClickAdvancedOptions}
+      >
+        <span>Advanced options</span>
+        {openAdvancedOptions ? (
+          <ChevronUp className='h-4 w-4' />
+        ) : (
+          <ChevronDown className='h-4 w-4' />
+        )}
+      </Button>
+      <div className={openAdvancedOptions ? 'flex flex-col gap-y-2' : 'hidden flex-col gap-y-2 lg:flex'}>
+        <CookieOption />
+        <Card className='p-2 rounded-md bg-card-nested border-none'>
+          <CardDescription className='text-warning-foreground text-sm mb-1'>
+            The options below are excluded for <b>livestreams</b> and <b>playlist</b> downloads.
+          </CardDescription>
+          <div className='flex flex-col gap-y-2'>
+            <FileNameOption />
+            <CutVideoOption />
+            <EmbedSubtitlesOption />
+            <EmbedThumbnailOption />
+            <EmbedChapterMarkersOption />
+            <EmbedMetadataOption />
+            <EmbedVideoThumbnailOption />
+          </div>
+        </Card>
+        <LiveFromStartOption />
+        <ProxyOption />
+      </div>
     </form>
   );
 }, isPropsEquals);

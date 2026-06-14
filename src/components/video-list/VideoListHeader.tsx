@@ -30,7 +30,7 @@ import {
 import { RiListCheck3 } from 'react-icons/ri';
 import { TbPlaylistX } from 'react-icons/tb';
 import { cn } from '@/lib/utils';
-import { VideoListProps } from '@/components/containers/VideoList';
+import { VideoListProps, type VideoListViewMode } from '@/components/containers/VideoList';
 import { Input } from '@/components/ui/input';
 import { IoClose } from 'react-icons/io5';
 import { AiOutlineSearch } from 'react-icons/ai';
@@ -40,10 +40,10 @@ export type VideoListHeaderProps = {
   orders: VideoListProps['orders'];
   isValidating: boolean;
   search: string;
-  viewMode: 'default' | 'playlists';
+  viewMode: VideoListViewMode;
   onClickReloadButton: () => void;
   setSearch: (search: string) => void;
-  setViewMode: (viewMode: 'default' | 'playlists') => void;
+  setViewMode: (viewMode: VideoListViewMode) => void;
 };
 
 export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
@@ -71,12 +71,6 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
   const [openDeleteAllFile, setOpenDeleteAllFile] = useState(false);
 
   const itemLength = orders?.length || 0;
-  const audioLength =
-    orders?.filter((uuid) => {
-      const item = items?.[uuid];
-      return item?.selectQuality === 'audio' || item?.format === 'ba';
-    }).length || 0;
-  const videoLength = itemLength - audioLength;
   const isAllSelected = itemLength && selectedUuids.size === itemLength;
 
   const handleCloseDeleteList = () => {
@@ -232,11 +226,27 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
           <div className='flex shrink-0 overflow-hidden rounded-full border bg-background text-xs font-medium'>
             <Button
               type='button'
-              variant={viewMode === 'default' ? 'default' : 'ghost'}
+              variant={viewMode === 'all' ? 'default' : 'ghost'}
               className='h-8 rounded-none px-3'
-              onClick={() => setViewMode('default')}
+              onClick={() => setViewMode('all')}
             >
-              Default
+              All
+            </Button>
+            <Button
+              type='button'
+              variant={viewMode === 'video' ? 'default' : 'ghost'}
+              className='h-8 rounded-none px-3'
+              onClick={() => setViewMode('video')}
+            >
+              Video
+            </Button>
+            <Button
+              type='button'
+              variant={viewMode === 'audio' ? 'default' : 'ghost'}
+              className='h-8 rounded-none px-3'
+              onClick={() => setViewMode('audio')}
+            >
+              Audio
             </Button>
             <Button
               type='button'
@@ -250,13 +260,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         )}
         {isSelectMode ? (
           <h1 className='text-center text-lg font-bold whitespace-nowrap'>Select Mode</h1>
-        ) : (
-          <div className='hidden shrink-0 items-center gap-1.5 whitespace-nowrap text-lg font-bold sm:flex'>
-            <span>Videos({videoLength})</span>
-            <span className='text-muted-foreground'>/</span>
-            <span>Audio({audioLength})</span>
-          </div>
-        )}
+        ) : null}
         <div className='ml-auto flex min-w-0 flex-1 items-center justify-between rounded-full shadow-sm'>
           <Input
             type='text'

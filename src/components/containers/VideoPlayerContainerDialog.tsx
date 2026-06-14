@@ -11,7 +11,7 @@ export type VideoPlayerContainerProps = {
 export function VideoPlayerContainer() {
   const {
     openVideoPlayer,
-    isLoopVideo,
+    repeatMode,
     isNotSupportedCodec,
     isTopSticky,
     isWideScreen,
@@ -31,7 +31,8 @@ export function VideoPlayerContainer() {
         <div className='z-[51] fixed w-full top-0 left-0 min-h-[200px] h-[35vh] md:h-[30vh] bg-black/90 dark:bg-black/70 backdrop-blur-lg'>
           <div className='z-[51] absolute top-0 left-0 w-full h-full'>
             <VideoPlayer
-              isLoopVideo={isLoopVideo}
+              allowGalleryActions
+              repeatMode={repeatMode}
               isNotSupportedCodec={isNotSupportedCodec}
               isTopSticky={isTopSticky}
               isWideScreen={isWideScreen}
@@ -58,7 +59,8 @@ export function VideoPlayerContainer() {
         hideCloseButton
       >
         <VideoPlayer
-          isLoopVideo={isLoopVideo}
+          allowGalleryActions
+          repeatMode={repeatMode}
           isNotSupportedCodec={isNotSupportedCodec}
           isTopSticky={isTopSticky}
           isWideScreen={isWideScreen}

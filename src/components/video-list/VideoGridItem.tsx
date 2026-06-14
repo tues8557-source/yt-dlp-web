@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { LinkIcon } from 'lucide-react';
+import { LinkIcon, Settings, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { BsCheckCircleFill } from 'react-icons/bs';
 import { useVideoListStore } from '@/store/videoList';
@@ -35,9 +35,15 @@ import { TbPlaylistX } from 'react-icons/tb';
 import { PlaylistViewer } from './PlaylistViewer';
 import { DownloadOptionsInfoDialog } from './DownloadOptionsInfoDialog';
 import type { UserPlaylists } from '@/types/userPlaylist';
+import type { GetVideoList } from '@/server/yt-dlp-web';
+import type { VideoPlayerFileVariant, VideoPlayerQueueItem } from '@/components/modules/VideoPlayer';
 
 export type VideoGridItemProps = {
+  highlightPlaylistButton?: boolean;
+  queue?: VideoPlayerQueueItem[];
+  queueTitle?: string | null;
   video: VideoInfo;
+  items?: GetVideoList['items'];
 };
 
 const loadedThumbnailUrls = new Set<string>();
@@ -72,7 +78,13 @@ const formatDuration = (duration?: string | number | null) => {
   return numeral(seconds).format('00:00:00');
 };
 
-export const VideoGridItem = ({ video }: VideoGridItemProps) => {
+export const VideoGridItem = ({
+  video,
+  items,
+  highlightPlaylistButton,
+  queue,
+  queueTitle
+}: VideoGridItemProps) => {
   const [isValidating, setValidating] = useState(false);
   const [isMouseEntered, setMouseEntered] = useState(false);
   const [isLocalThumbnailImageError, setLocalThumbnailImageError] = useState(false);
@@ -125,10 +137,12 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
   const thumbnailWasLoaded = Boolean(thumbnailUrl && loadedThumbnailUrls.has(thumbnailUrl));
   const uploadDate = formatUploadDate(video.uploadDate);
   const fileDuration = formatDuration(video.file.duration);
+  const sourceVariants = getSameSourceVariants(video, items);
 
   const [openDeleteList, setOpenDeleteList] = useState(false);
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
   const [openUserPlaylists, setOpenUserPlaylists] = useState(false);
+  const [isPlaylistDeleteMode, setPlaylistDeleteMode] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const { data: userPlaylists, mutate: mutateUserPlaylists } = useSWR<UserPlaylists>(
     '/api/playlists',
@@ -149,6 +163,13 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
 
   const handleChangeDeleteFile = (open: boolean) => {
     setOpenDeleteFile(open);
+  };
+
+  const handleChangeUserPlaylists = (open: boolean) => {
+    setOpenUserPlaylists(open);
+    if (!open) {
+      setPlaylistDeleteMode(false);
+    }
   };
 
   const selectedUserPlaylistIds =
@@ -173,6 +194,32 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
 
     setNewPlaylistName('');
     mutateUserPlaylists(result, false);
+  };
+
+  const handleTogglePlaylistDeleteMode = () => {
+    setPlaylistDeleteMode((value) => !value);
+  };
+
+  const handleDeleteUserPlaylist = (playlistId: string) => async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const result = await axios
+      .delete('/api/playlists', {
+        params: {
+          id: playlistId
+        }
+      })
+      .then((res) => res.data)
+      .catch((res) => res.response?.data);
+
+    if (result?.error) {
+      toast.error(result.error || 'Failed to delete playlist.');
+      return;
+    }
+
+    mutateUserPlaylists(result, false);
+    toast.success('Playlist deleted.');
   };
 
   const handleToggleUserPlaylist = (playlistId: string) => async () => {
@@ -375,7 +422,18 @@ export const VideoGridItem = ({ video }: VideoGridItemProps) => {
           type: video.type,
           url: video.url,
           uuid: video.uuid,
-          size: video?.file?.size
+          uploadDate: video.uploadDate,
+          filename: video?.file?.name,
+          size: video?.file?.size,
+          duration: video?.file?.duration,
+          height: video?.file?.height,
+          rFrameRate: video?.file?.rFrameRate,
+          codecName: video?.file?.codecName,
+          colorPrimaries: video?.file?.colorPrimaries,
+          containerName: video?.file?.containerName,
+          variants: sourceVariants,
+          queueTitle,
+          queue
         });
       } catch (e) {
         if (e === NOT_SUPPORTED) {
@@ -781,11 +839,15 @@ encode speed ${video.download.ffmpeg.speed}`
                   </Button>
                 </div>
               )}
-              <DropdownMenu open={openUserPlaylists} onOpenChange={setOpenUserPlaylists}>
+              <DropdownMenu open={openUserPlaylists} onOpenChange={handleChangeUserPlaylists}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     size='sm'
-                    className='h-[1.7em] rounded-xl rounded-l-none bg-warning text-black hover:bg-warning/90 hover:text-black text-lg'
+                    className={cn(
+                      'h-[1.7em] rounded-xl rounded-l-none bg-warning text-black hover:bg-warning/90 hover:text-black text-lg',
+                      highlightPlaylistButton &&
+                        'animate-pulse ring-2 ring-warning ring-offset-2 ring-offset-background'
+                    )}
                     title='Add to playlists'
                   >
                     <BsCollectionPlay />
@@ -793,7 +855,19 @@ encode speed ${video.download.ffmpeg.speed}`
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end' className='w-72'>
                   <DropdownMenuLabel className='space-y-3'>
-                    <div className='font-semibold'>Playlists</div>
+                    <div className='flex items-center justify-between gap-x-2'>
+                      <div className='font-semibold'>Playlists</div>
+                      <Button
+                        type='button'
+                        variant={isPlaylistDeleteMode ? 'secondary' : 'ghost'}
+                        size='icon'
+                        className='h-7 w-7 rounded-full'
+                        onClick={handleTogglePlaylistDeleteMode}
+                        title={isPlaylistDeleteMode ? 'Exit delete mode' : 'Delete playlists'}
+                      >
+                        <Settings className='h-4 w-4' />
+                      </Button>
+                    </div>
                     <form className='flex gap-x-2' onSubmit={handleSubmitCreateUserPlaylist}>
                       <Input
                         className='h-8'
@@ -812,16 +886,34 @@ encode speed ${video.download.ffmpeg.speed}`
                           if (!playlist) return null;
                           const checked = selectedUserPlaylistIds.includes(playlistId);
                           return (
-                            <Label
+                            <div
                               key={playlistId}
-                              className='flex cursor-pointer items-center gap-x-2 rounded-md px-2 py-1.5 hover:bg-accent'
+                              className='flex items-center gap-x-2 rounded-md px-2 py-1.5 hover:bg-accent'
                             >
-                              <Checkbox checked={checked} onClick={handleToggleUserPlaylist(playlistId)} />
-                              <span className='min-w-0 flex-1 truncate'>{playlist.name}</span>
+                              <Label className='flex min-w-0 flex-1 cursor-pointer items-center gap-x-2'>
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={isPlaylistDeleteMode}
+                                  onClick={handleToggleUserPlaylist(playlistId)}
+                                />
+                                <span className='min-w-0 flex-1 truncate'>{playlist.name}</span>
+                              </Label>
                               <span className='text-xs text-muted-foreground'>
                                 {playlist.uuids.length}
                               </span>
-                            </Label>
+                              {isPlaylistDeleteMode && (
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-7 w-7 shrink-0 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive'
+                                  onClick={handleDeleteUserPlaylist(playlistId)}
+                                  title='Delete playlist'
+                                >
+                                  <X className='h-4 w-4' />
+                                </Button>
+                              )}
+                            </div>
                           );
                         })
                       ) : (
@@ -879,3 +971,65 @@ encode speed ${video.download.ffmpeg.speed}`
 };
 
 VideoGridItem.displayName = 'VideoGridItem';
+
+function getSameSourceVariants(
+  video: VideoInfo,
+  items?: GetVideoList['items']
+): VideoPlayerFileVariant[] {
+  const sourceKey = normalizeSourceUrl(video.url || '');
+  if (!sourceKey || !items || video.type === 'playlist') {
+    return [];
+  }
+
+  const variants = Object.values(items)
+    .filter((item) => {
+      if (!item || item.type === 'playlist' || item.status !== 'completed') return false;
+      if (!item.file?.path) return false;
+
+      return normalizeSourceUrl(item.url || '') === sourceKey;
+    })
+    .map((item) => ({
+      uuid: item.uuid,
+      title: item.title,
+      url: item.url,
+      uploadDate: item.uploadDate,
+      filename: item.file?.name,
+      size: item.file?.size,
+      duration: item.file?.duration,
+      height: item.file?.height,
+      rFrameRate: item.file?.rFrameRate,
+      codecName: item.file?.codecName,
+      colorPrimaries: item.file?.colorPrimaries,
+      containerName: item.file?.containerName
+    }));
+
+  variants.sort((a, b) => {
+    if (a.uuid === video.uuid) return -1;
+    if (b.uuid === video.uuid) return 1;
+    return getVariantSortValue(b) - getVariantSortValue(a);
+  });
+
+  return variants;
+}
+
+function normalizeSourceUrl(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return '';
+
+  try {
+    const url = new URL(trimmedValue);
+    url.hash = '';
+    url.searchParams.delete('list');
+    url.searchParams.delete('start_radio');
+    url.searchParams.delete('index');
+    return url.toString().replace(/\/$/, '').toLocaleLowerCase();
+  } catch (e) {
+    return trimmedValue.toLocaleLowerCase();
+  }
+}
+
+function getVariantSortValue(variant: VideoPlayerFileVariant) {
+  const height = typeof variant.height === 'number' ? variant.height : 0;
+  const size = typeof variant.size === 'number' ? variant.size / 1_000_000_000 : 0;
+  return height + size;
+}
