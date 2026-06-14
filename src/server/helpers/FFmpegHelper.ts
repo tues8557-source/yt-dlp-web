@@ -50,21 +50,21 @@ export class FFmpegHelper {
           const streams = json?.streams?.find((stream) => stream.codec_type === 'video');
           const audioStream = json?.streams?.find((stream) => stream.codec_type === 'audio');
 
-          if (!streams) {
+          if (!streams && !audioStream) {
             throw 'streams not found';
           }
 
           const [total, duration] = streams?.r_frame_rate?.split?.('/') || [];
           resolve({
-            codecName: streams.codec_name,
+            codecName: streams?.codec_name,
             audioCodecName: audioStream?.codec_name,
             containerName: json.format?.format_name,
-            width: streams.width,
-            height: streams.height,
-            colorPrimaries: streams.color_primaries,
+            width: streams?.width,
+            height: streams?.height,
+            colorPrimaries: streams?.color_primaries,
             rFrameRate:
               total && duration ? Number(total) / Number(duration) || undefined : undefined,
-            duration: streams.duration || json.format?.duration
+            duration: streams?.duration || audioStream?.duration || json.format?.duration
           });
         } catch (e) {
           reject('streams not found');
@@ -118,6 +118,44 @@ export class FFmpegHelper {
           return;
         }
         reject(stderr || 'Failed to transcode video for Safari');
+      });
+    });
+  }
+
+  async transcodeAudioForSafari(outputPath?: string) {
+    const parsedPath = parse(this.filePath);
+    const nextOutputPath = outputPath || `${parsedPath.dir}/${parsedPath.name} [Safari].m4a`;
+
+    return new Promise((resolve: (filePath: string) => void, reject: (message: string) => void) => {
+      const ffmpeg = spawn('ffmpeg', [
+        '-y',
+        '-loglevel',
+        'repeat+info',
+        '-i',
+        this.filePath,
+        '-vn',
+        '-dn',
+        '-ignore_unknown',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '160k',
+        '-movflags',
+        '+faststart',
+        nextOutputPath
+      ]);
+
+      let stderr = '';
+      ffmpeg.stderr.setEncoding('utf-8');
+      ffmpeg.stderr.on('data', (data) => {
+        stderr += data?.trim?.() || '';
+      });
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve(nextOutputPath);
+          return;
+        }
+        reject(stderr || 'Failed to transcode audio for Safari');
       });
     });
   }

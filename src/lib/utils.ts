@@ -17,14 +17,26 @@ export function jsonStringifyPrettier(object: {}) {
   return JSON.stringify(object, null, '\t');
 }
 
-/**
- *
- * @returns 마지막 인덱스는 foramt 옵션의 값 입니다.
- */
+export function qualityToYtDlpFormat(resolution: SelectQuality) {
+  switch (resolution) {
+    case 'audio':
+      return 'ba';
+    case '4320p':
+    case '2160p':
+    case '1440p':
+    case '1080p':
+    case '720p':
+    case '480p':
+    case 'best':
+    default:
+      return 'bv+ba/b';
+  }
+}
+
 export function qualityToYtDlpCmdOptions(resolution: SelectQuality) {
   switch (resolution) {
     case 'audio': {
-      return ['-f', 'ba'];
+      return ['-f', qualityToYtDlpFormat(resolution), '-x', '--audio-format', 'best'];
     }
     case '4320p':
     case '2160p':
@@ -33,11 +45,11 @@ export function qualityToYtDlpCmdOptions(resolution: SelectQuality) {
     case '720p':
     case '480p': {
       const res = resolution.replace('p', '');
-      return ['-S', `res:${res},codec,br,fps`, '-f', 'bv+ba/b'];
+      return ['-S', `res:${res},codec,br,fps`, '-f', qualityToYtDlpFormat(resolution)];
     }
     case 'best':
     default: {
-      return ['-f', 'bv+ba/b'];
+      return ['-f', qualityToYtDlpFormat(resolution)];
     }
   }
 }

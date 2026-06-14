@@ -12,7 +12,7 @@ import type {
   VideoMetadata
 } from '@/types/video';
 import { randomUUID } from 'crypto';
-import { isDevelopment, qualityToYtDlpCmdOptions } from '@/lib/utils';
+import { isDevelopment, qualityToYtDlpCmdOptions, qualityToYtDlpFormat } from '@/lib/utils';
 import { CACHE_FILE_PREFIX, CACHE_PATH, COOKIES_FILE, DOWNLOAD_PATH } from '@/server/constants';
 import { join, parse } from 'path';
 
@@ -260,13 +260,13 @@ export class YtDlpHelper {
         const selectQuality = this.videoInfo.selectQuality;
         if (selectQuality) {
           const cmdOptions = qualityToYtDlpCmdOptions(selectQuality);
-          const format = cmdOptions[cmdOptions.length - 1];
-          this.videoInfo.format = format;
+          this.videoInfo.format = qualityToYtDlpFormat(selectQuality);
           options.push(...cmdOptions);
         } else {
           options.push('-f', this.videoInfo.format);
         }
         options.push('--no-playlist');
+        const isAudioOnly = this.isAudioOnlyDownload();
 
         if (this.videoInfo?.outputFilename) {
           options.push('-o', this.videoInfo.outputFilename);
@@ -306,7 +306,7 @@ export class YtDlpHelper {
           if (this.videoInfo?.embedMetadata) {
             options.push('--embed-metadata');
           }
-          if (this.videoInfo?.embedSubs || this.videoInfo.subLangs.length > 0) {
+          if (!isAudioOnly && (this.videoInfo?.embedSubs || this.videoInfo.subLangs.length > 0)) {
             if (this.videoInfo.subLangs.length === 0 || this.videoInfo.subLangs.includes('all')) {
               this.videoInfo.subLangs = ['all'];
             }
@@ -335,7 +335,7 @@ export class YtDlpHelper {
               }`
             );
 
-            if (this.videoInfo.enableForceKeyFramesAtCuts) {
+            if (!isAudioOnly && this.videoInfo.enableForceKeyFramesAtCuts) {
               options.push('--force-keyframes-at-cuts');
             }
           }
@@ -573,6 +573,14 @@ export class YtDlpHelper {
     return this.isFormatExist;
   }
 
+  private isAudioOnlyDownload() {
+    return (
+      this.videoInfo.selectQuality === 'audio' ||
+      this.videoInfo.format === 'ba' ||
+      (!this.videoInfo.videoId && Boolean(this.videoInfo.audioId))
+    );
+  }
+
   private isSafariCompatibleFile(file?: VideoInfo['file']) {
     if (!file?.path) return false;
 
@@ -585,6 +593,22 @@ export class YtDlpHelper {
       !file.audioCodecName || ['aac', 'alac', 'mp3'].includes(file.audioCodecName);
 
     return isMp4Container && isH264 && hasSafariAudio;
+  }
+
+  private isSafariCompatibleAudioFile(file?: VideoInfo['file']) {
+    if (!file?.path) return false;
+
+    const isM4aFile = /\.m4a$/i.test(file.path);
+    const containerName = file.containerName || '';
+    const isM4aContainer =
+      isM4aFile ||
+      containerName
+        .split(',')
+        .some((container) => ['mov', 'mp4', 'm4a', '3gp', '3g2', 'mj2'].includes(container.trim()));
+    const hasSafariAudio =
+      !file.audioCodecName || ['aac', 'alac', 'mp3'].includes(file.audioCodecName);
+
+    return isM4aContainer && hasSafariAudio;
   }
 
   private async setThumbnailAsFirstFrame(uuid: string, file: VideoInfo['file']) {
@@ -674,6 +698,144 @@ export class YtDlpHelper {
       this.videoInfo.status = 'completed';
       await CacheHelper.set(uuid, this.videoInfo);
     }
+  }
+
+  private async updateAudioFileVariants(uuid: string, file: VideoInfo['file']) {
+    this.videoInfo.files = this.videoInfo.files || {};
+    this.videoInfo.files.original = {
+      ...file,
+      source: 'original'
+    };
+
+    if (this.isSafariCompatibleAudioFile(file)) {
+      this.videoInfo.files.safari = {
+        ...file,
+        source: 'safari',
+        aliasOf: 'original'
+      };
+      this.videoInfo.file = file;
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+      return;
+    }
+
+    this.videoInfo.files.safari = undefined;
+    this.videoInfo.status = 'merging';
+    this.videoInfo.updatedAt = Date.now();
+    await CacheHelper.set(uuid, this.videoInfo);
+
+    const safariFilePath =
+      (await this.downloadSafariCompatibleAudioFile(file.path).catch(() => null)) ||
+      (await new FFmpegHelper({ filePath: file.path! }).transcodeAudioForSafari().catch(() => null));
+
+    if (!safariFilePath) {
+      this.videoInfo.file = file;
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+      return;
+    }
+
+    try {
+      const stat = await fs.stat(safariFilePath);
+      const streams = await new FFmpegHelper({ filePath: safariFilePath }).getVideoStreams();
+
+      this.videoInfo.files.safari = {
+        ...streams,
+        path: safariFilePath,
+        name: safariFilePath.replace(DOWNLOAD_PATH + '/', ''),
+        size: stat.size,
+        source: 'safari'
+      };
+      this.videoInfo.file = file;
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+    } catch (e) {
+      this.videoInfo.file = file;
+      this.videoInfo.status = 'completed';
+      await CacheHelper.set(uuid, this.videoInfo);
+    }
+  }
+
+  private async downloadSafariCompatibleAudioFile(originalFilePath?: string | null) {
+    if (!originalFilePath) {
+      throw 'original file path is not found';
+    }
+
+    const parsedPath = parse(originalFilePath);
+    const outputTemplate = `${parsedPath.dir}/${parsedPath.name} [Safari].%(ext)s`;
+    const options = [
+      '--verbose',
+      '--no-continue',
+      '--windows-filenames',
+      '--no-playlist',
+      '--print',
+      'after_move:filepath',
+      '-f',
+      'ba[ext=m4a]/ba[acodec^=mp4a]/ba',
+      '-x',
+      '--audio-format',
+      'm4a',
+      '-o',
+      outputTemplate
+    ];
+
+    if (this.videoInfo?.embedThumbnail) {
+      options.push('--write-thumbnail', '--convert-thumbnails', 'png', '--embed-thumbnail');
+    }
+    if (this.videoInfo?.embedChapters) {
+      options.push('--embed-chapters');
+    }
+    if (this.videoInfo?.embedMetadata) {
+      options.push('--embed-metadata');
+    }
+    if (this.videoInfo?.usingCookies) {
+      options.push('--cookies', getCacheFilePath(COOKIES_FILE, 'txt'));
+    }
+    if (
+      this.videoInfo?.enableProxy &&
+      typeof this.videoInfo?.proxyAddress === 'string' &&
+      this.videoInfo?.proxyAddress
+    ) {
+      options.push('--proxy', this.videoInfo.proxyAddress);
+    }
+
+    options.push(this.url);
+
+    return new Promise((resolve: (filePath: string) => void, reject: (message: string) => void) => {
+      const ytdlp = spawn('yt-dlp', options, {
+        killSignal: 'SIGINT',
+        cwd: DOWNLOAD_PATH
+      });
+      let outputFilePath = '';
+      let errorMessage = '';
+
+      const listener = (data: string) => {
+        const message = data?.trim?.();
+        if (!message) return;
+
+        if (message.startsWith('ERROR: ')) {
+          errorMessage = message?.split('\n')?.[0] || message;
+          return;
+        }
+
+        outputFilePath =
+          streamFilePathRegex.exec(message)?.[1] ||
+          filePathRegex.exec(message)?.[1] ||
+          outputFilePath;
+      };
+
+      ytdlp.stdout.setEncoding('utf-8');
+      ytdlp.stderr.setEncoding('utf-8');
+      ytdlp.stdout.on('data', listener);
+      ytdlp.stderr.on('data', listener);
+      ytdlp.on('close', (code) => {
+        if (code === 0 && outputFilePath) {
+          resolve(outputFilePath);
+          return;
+        }
+        reject(errorMessage || 'Failed to download Safari compatible audio format');
+      });
+    });
   }
 
   private async downloadSafariCompatibleFile(originalFilePath?: string | null) {
@@ -1056,7 +1218,11 @@ export class YtDlpHelper {
             ...streams
           };
         } catch (error) {}
-        await this.updateVideoFileVariants(uuid, videoInfo.file);
+        if (this.isAudioOnlyDownload()) {
+          await this.updateAudioFileVariants(uuid, videoInfo.file);
+        } else {
+          await this.updateVideoFileVariants(uuid, videoInfo.file);
+        }
         videoInfo.updatedAt = Date.now();
         await CacheHelper.set(uuid, videoInfo);
       }
@@ -1074,15 +1240,19 @@ export class YtDlpHelper {
             videoInfo.status = 'completed';
             videoInfo.file.size = stat.size;
 
-            const ffmpeg = new FFmpegHelper({
-              filePath: videoInfo.file.path
-            });
-            const streams = await ffmpeg.getVideoStreams();
-            videoInfo.file = {
-              ...videoInfo.file,
-              ...streams
-            };
-            await this.updateVideoFileVariants(uuid, videoInfo.file);
+            if (this.isAudioOnlyDownload()) {
+              await this.updateAudioFileVariants(uuid, videoInfo.file);
+            } else {
+              const ffmpeg = new FFmpegHelper({
+                filePath: videoInfo.file.path
+              });
+              const streams = await ffmpeg.getVideoStreams();
+              videoInfo.file = {
+                ...videoInfo.file,
+                ...streams
+              };
+              await this.updateVideoFileVariants(uuid, videoInfo.file);
+            }
           }
         } catch (e) {}
       }
