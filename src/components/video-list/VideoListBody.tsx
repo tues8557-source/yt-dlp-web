@@ -265,6 +265,7 @@ function toVideoPlayerQueueItem(video: NonNullable<VideoListProps['items']>[stri
     filename: video.file?.name,
     size: video.file?.size,
     duration: video.file?.duration,
+    width: video.file?.width,
     height: video.file?.height,
     rFrameRate: video.file?.rFrameRate,
     codecName: video.file?.codecName,

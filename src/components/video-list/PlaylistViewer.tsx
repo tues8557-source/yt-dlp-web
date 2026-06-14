@@ -37,6 +37,7 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
       playlistTitle: video.title,
       playlist: video.playlist,
       duration: playlistVideo.duration,
+      width: playlistVideo.width,
       height: playlistVideo.height,
       rFrameRate: playlistVideo.rFrameRate,
       codecName: playlistVideo.codecName,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, MouseEvent, RefObject } from 'react';
+import type { ChangeEvent, MouseEvent, RefObject, TouchEvent } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
 import {
@@ -61,6 +61,7 @@ export type VideoPlayerVideoInfo = {
   playlistTitle?: string | null;
   playlist?: VideoInfo['playlist'];
   duration?: string | number | null;
+  width?: number;
   height?: number;
   rFrameRate?: number;
   codecName?: string;
@@ -80,6 +81,14 @@ export type VideoPlayerProps = {
 >;
 
 type ShareTarget = 'player' | 'source' | 'download';
+type TouchPoint = {
+  x: number;
+  y: number;
+};
+type FullscreenOrientationLock = 'portrait' | 'landscape';
+type LockableScreenOrientation = ScreenOrientation & {
+  lock?: (orientation: FullscreenOrientationLock) => Promise<void>;
+};
 
 export type VideoPlayerFileVariant = {
   uuid: string;
@@ -89,6 +98,7 @@ export type VideoPlayerFileVariant = {
   filename?: string | null;
   size?: number;
   duration?: string | number | null;
+  width?: number;
   height?: number;
   rFrameRate?: number;
   codecName?: string;
@@ -109,6 +119,8 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLMediaElement | null>(null);
   const playerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const progressRef = useRef<HTMLInputElement>(null);
+  const surfaceTouchStartRef = useRef<TouchPoint | null>(null);
+  const edgeTouchStartRef = useRef<TouchPoint | null>(null);
   const [isPlaying, setPlaying] = useState(false);
   const [isMuted, setMuted] = useState(false);
   const [currentTime, setLocalCurrentTime] = useState(0);
@@ -319,10 +331,32 @@ export function VideoPlayer({
   };
 
   const handleClickFullScreenButton = async () => {
+    await enterFullscreenWithOrientation();
+  };
+
+  const enterFullscreenWithOrientation = async () => {
     const targetEl = playerSurfaceRef.current || videoRef.current;
     if (!targetEl) return;
+
     try {
-      if (targetEl.requestFullscreen) return targetEl.requestFullscreen();
+      if (targetEl.requestFullscreen) {
+        await targetEl.requestFullscreen();
+      } else if (isWebkitFullscreenVideo(videoRef.current)) {
+        videoRef.current.webkitEnterFullscreen();
+      }
+
+      await lockFullscreenOrientation();
+    } catch (e) {}
+  };
+
+  const lockFullscreenOrientation = async () => {
+    const orientation = getFullscreenOrientation(videoRef.current, videoInfo);
+    const screenOrientation = screen.orientation as LockableScreenOrientation | undefined;
+
+    try {
+      if (screenOrientation?.lock) {
+        await screenOrientation.lock(orientation);
+      }
     } catch (e) {}
   };
 
@@ -349,6 +383,7 @@ export function VideoPlayer({
       filename: variant.filename,
       size: variant.size,
       duration: variant.duration,
+      width: variant.width,
       height: variant.height,
       rFrameRate: variant.rFrameRate,
       codecName: variant.codecName,
@@ -373,6 +408,7 @@ export function VideoPlayer({
       filename: queueVideo.filename,
       size: queueVideo.size,
       duration: queueVideo.duration,
+      width: queueVideo.width,
       height: queueVideo.height,
       rFrameRate: queueVideo.rFrameRate,
       codecName: queueVideo.codecName,
@@ -399,6 +435,7 @@ export function VideoPlayer({
       playlistTitle: videoInfo.playlistTitle,
       playlist: videoInfo.playlist,
       duration: playlistVideo.duration,
+      width: playlistVideo.width,
       height: playlistVideo.height,
       rFrameRate: playlistVideo.rFrameRate,
       codecName: playlistVideo.codecName,
@@ -566,6 +603,55 @@ export function VideoPlayer({
     setControlsVisible(false);
   };
 
+  const handleSurfaceTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    surfaceTouchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  };
+
+  const handleSurfaceTouchEnd = async (event: TouchEvent<HTMLDivElement>) => {
+    const start = surfaceTouchStartRef.current;
+    surfaceTouchStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (deltaY < -70 && Math.abs(deltaX) < 70) {
+      await enterFullscreenWithOrientation();
+    }
+  };
+
+  const handleEdgeTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch || touch.clientX > 28) {
+      edgeTouchStartRef.current = null;
+      return;
+    }
+
+    edgeTouchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  };
+
+  const handleEdgeTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = edgeTouchStartRef.current;
+    edgeTouchStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (deltaX > 80 && Math.abs(deltaY) < 70) {
+      handleClose();
+    }
+  };
+
   const playerSurface = (
     <div
       ref={playerSurfaceRef}
@@ -573,6 +659,8 @@ export function VideoPlayer({
       onMouseEnter={handleShowControls}
       onMouseMove={handleShowControls}
       onMouseLeave={handleHideControls}
+      onTouchStart={handleSurfaceTouchStart}
+      onTouchEnd={handleSurfaceTouchEnd}
     >
       {isAudioOnly ? (
         <audio
@@ -690,11 +778,15 @@ export function VideoPlayer({
   }
 
   return (
-    <div className='h-full min-w-[var(--site-min-width)] overflow-y-auto bg-background text-foreground'>
-      <div className='mx-auto grid w-full max-w-[1280px] gap-4 px-3 py-3 md:px-5'>
-        <main className='min-w-0'>
+    <div
+      className='h-full min-w-[var(--site-min-width)] overflow-hidden bg-background text-foreground md:overflow-y-auto'
+      onTouchStart={handleEdgeTouchStart}
+      onTouchEnd={handleEdgeTouchEnd}
+    >
+      <div className='mx-auto flex h-full w-full max-w-[1280px] flex-col gap-4 px-3 py-3 md:grid md:h-auto md:px-5'>
+        <main className='flex min-h-0 min-w-0 flex-1 flex-col md:block'>
           {playerSurface}
-          <section className='pt-3'>
+          <section className='flex min-h-0 flex-1 flex-col overflow-hidden pt-3 md:block md:overflow-visible'>
             <div className='flex items-start gap-x-3'>
               <div className='min-w-0 flex-1'>
                 <h2
@@ -748,6 +840,7 @@ export function VideoPlayer({
               </div>
             </div>
             <MediaQueuePanel
+              className='flex min-h-0 flex-1 flex-col md:min-h-0 md:flex-none'
               currentUuid={videoInfo.uuid}
               playlistItems={playlistItems}
               queueItems={queueItems}
@@ -1009,6 +1102,7 @@ type ShareMenuProps = {
 };
 
 function MediaQueuePanel({
+  className,
   currentUuid,
   playlistItems,
   queueItems,
@@ -1026,10 +1120,11 @@ function MediaQueuePanel({
   onOpenPlaylistVideo: (playlistVideo?: VideoInfo['playlist'][number]) => void;
   onOpenQueueVideo: (queueVideo?: VideoPlayerQueueItem) => void;
   onOpenVariant: (variant: VideoPlayerFileVariant) => void;
+  className?: string;
 }) {
   if (queueItems.length > 0) {
     return (
-      <section className='mt-4 overflow-hidden rounded-lg border bg-card'>
+      <section className={cn('mt-4 overflow-hidden rounded-lg border bg-card md:block', className)}>
         <div className='border-b p-3'>
           <div className='flex items-center gap-x-2 font-semibold'>
             <ListVideo className='h-4 w-4' />
@@ -1037,7 +1132,7 @@ function MediaQueuePanel({
           </div>
           <div className='mt-1 text-xs text-muted-foreground'>{queueItems.length} videos</div>
         </div>
-        <div className='divide-y'>
+        <div className='min-h-0 flex-1 divide-y overflow-y-auto md:block md:max-h-80'>
           {queueItems.map((item, index) => {
             const isCurrent = item.uuid === currentUuid;
 
@@ -1097,7 +1192,7 @@ function MediaQueuePanel({
 
   if (playlistItems.length > 0) {
     return (
-      <section className='mt-4 overflow-hidden rounded-lg border bg-card'>
+      <section className={cn('mt-4 overflow-hidden rounded-lg border bg-card md:block', className)}>
         <div className='border-b p-3'>
           <div className='flex items-center gap-x-2 font-semibold'>
             <ListVideo className='h-4 w-4' />
@@ -1105,7 +1200,7 @@ function MediaQueuePanel({
           </div>
           <div className='mt-1 text-xs text-muted-foreground'>{playlistItems.length} videos</div>
         </div>
-        <div className='max-h-80 overflow-y-auto p-2'>
+        <div className='min-h-0 flex-1 overflow-y-auto p-2 md:block md:max-h-80'>
           {playlistItems.map((item, index) => {
             const isCurrent = item?.uuid === videoInfo.playlistVideoUuid;
             const isPlayable = Boolean(item?.uuid && item.path && !item.error && !item.isLive);
@@ -1149,6 +1244,7 @@ function MediaQueuePanel({
           filename: videoInfo.filename,
           size: videoInfo.size,
           duration: videoInfo.duration,
+          width: videoInfo.width,
           height: videoInfo.height,
           rFrameRate: videoInfo.rFrameRate,
           codecName: videoInfo.codecName,
@@ -1158,11 +1254,11 @@ function MediaQueuePanel({
       ];
 
   return (
-    <section className='mt-4 overflow-hidden rounded-lg border bg-card'>
+    <section className={cn('mt-4 overflow-hidden rounded-lg border bg-card md:block', className)}>
       <div className='border-b p-3'>
         <div className='font-semibold'>Files</div>
       </div>
-      <div className='divide-y'>
+      <div className='min-h-0 flex-1 divide-y overflow-y-auto md:block md:max-h-80'>
         {displayedVariants.map((variant, index) => {
           const isCurrent = variant.uuid === currentUuid;
 
@@ -1324,6 +1420,7 @@ function InfoMenu({
           filename: videoInfo.filename,
           size: videoInfo.size,
           duration: videoInfo.duration,
+          width: videoInfo.width,
           height: videoInfo.height,
           rFrameRate: videoInfo.rFrameRate,
           codecName: videoInfo.codecName,
@@ -1530,6 +1627,36 @@ function isAudioFile(video?: Partial<VideoPlayerVideoInfo | VideoPlayerFileVaria
   }
 
   return typeof video.height !== 'number' || video.height <= 0;
+}
+
+function getFullscreenOrientation(
+  videoEl: HTMLMediaElement | null,
+  videoInfo: VideoPlayerVideoInfo
+): FullscreenOrientationLock {
+  if (videoEl instanceof HTMLVideoElement && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+    return videoEl.videoHeight > videoEl.videoWidth ? 'portrait' : 'landscape';
+  }
+
+  if (
+    typeof videoInfo.width === 'number' &&
+    videoInfo.width > 0 &&
+    typeof videoInfo.height === 'number' &&
+    videoInfo.height > 0
+  ) {
+    return videoInfo.height > videoInfo.width ? 'portrait' : 'landscape';
+  }
+
+  return isAudioFile(videoInfo) ? 'portrait' : 'landscape';
+}
+
+function isWebkitFullscreenVideo(
+  videoEl: HTMLMediaElement | null
+): videoEl is HTMLMediaElement & { webkitEnterFullscreen: () => void } {
+  return Boolean(
+    videoEl &&
+      'webkitEnterFullscreen' in videoEl &&
+      typeof (videoEl as { webkitEnterFullscreen?: unknown }).webkitEnterFullscreen === 'function'
+  );
 }
 
 function isAutoplayBlockedError(error: unknown) {
