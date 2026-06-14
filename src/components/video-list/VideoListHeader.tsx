@@ -217,6 +217,12 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
     setSearch(newSearch);
   };
 
+  const handleBlurSearchInput = () => {
+    if (search) return;
+
+    setMobileSearchOpen(false);
+  };
+
   const handleClickClearSearchButton = () => {
     setSearch('');
     setMobileSearchOpen(false);
@@ -291,6 +297,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
             value={search}
             placeholder='Search title, filename'
             onChange={handleChangeSearchValue}
+            onBlur={handleBlurSearchInput}
           />
           {search ? (
             <Button
