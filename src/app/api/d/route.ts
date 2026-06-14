@@ -8,6 +8,7 @@ import {
   checkRequiredFoldersAreAccessible,
   checkRequiredFoldersAreMounted
 } from '@/server/helpers/PermissionHelper';
+import { assertSafeOutputFilename } from '@/lib/ytDlpOutput';
 
 export const dynamic = 'force-dynamic';
 const FILENAME_LENGTH_LIMIT_CHARS = 80;
@@ -48,6 +49,9 @@ export async function GET(request: Request) {
     }
     if (!/^https?:\/?\/?/i.test(url)) {
       throw 'Please add `http://` or `https://`. ex) https://www.youtube.com/xxxxx';
+    }
+    if (outputFilename) {
+      assertSafeOutputFilename(outputFilename);
     }
 
     await checkRequiredFoldersAreMounted();

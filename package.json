@@ -2,6 +2,9 @@
   "name": "yt-dlp-web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -38,7 +41,7 @@
     "@radix-ui/react-tooltip": "^1.0.6",
     "@types/bcrypt": "^5.0.0",
     "@types/lodash": "^4.14.199",
-    "@types/node": "20.8.0",
+    "@types/node": "22.19.21",
     "@types/numeral": "^2.0.3",
     "@types/react": "18.2.24",
     "@types/react-dom": "18.2.8",

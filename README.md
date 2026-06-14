@@ -128,6 +128,8 @@ Useful query parameters:
 | `cutStartTime` | `00:01:00` | Section start |
 | `cutEndTime` | `00:02:00` | Section end |
 
+`outputFilename` must not end with `.desktop`, `.url`, or `.webloc`; yt-dlp 2026.06.09 blocks those dangerous output file types unless using its write-link feature.
+
 ## iOS Shortcut
 
 You can use an iOS Shortcut to send shared URLs directly to the automation API without opening the web UI. Configure the shortcut with your deployed domain and, if authentication is enabled, your `API_TOKEN`.
@@ -156,6 +158,8 @@ docker exec -u 0 -it yt-dlp-web /tmp/yt-dlp-bin/yt-dlp --update-to stable@2024.0
 
 ## Development
 
+Use Node.js 22 or newer. yt-dlp 2026.06.09 raised the minimum supported Node runtime to v22.
+
 Install dependencies and run the Next.js dev server:
 
 ```bash
@@ -176,6 +180,7 @@ The app expects `/downloads` and `/cache` paths at runtime. Docker is the recomm
 
 - yt-dlp
 - ffmpeg
+- Node.js 22+
 - Next.js 14
 - React 18
 - TypeScript

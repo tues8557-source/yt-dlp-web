@@ -7,6 +7,7 @@ import {
   checkRequiredFoldersAreAccessible,
   checkRequiredFoldersAreMounted
 } from '@/server/helpers/PermissionHelper';
+import { assertSafeOutputFilename } from '@/lib/ytDlpOutput';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,14 @@ export async function GET(request: Request) {
   const filenameLengthLimit = searchParams.has('filenameLengthLimit')
     ? Number(searchParams.get('filenameLengthLimit') || 0)
     : videoInfo?.filenameLengthLimit || 0;
+
+  try {
+    if (outputFilename) {
+      assertSafeOutputFilename(outputFilename);
+    }
+  } catch (error) {
+    return NextResponse.json({ error }, { status: 400 });
+  }
 
   if (videoInfo?.download?.pid) {
     new ProcessHelper({ pid: videoInfo.download.pid }).kill();
