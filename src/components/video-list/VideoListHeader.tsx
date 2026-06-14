@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { VscRefresh } from 'react-icons/vsc';
@@ -69,9 +69,18 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
   const [openDeleteAllList, setOpenDeleteAllList] = useState(false);
   const [openDeleteAllFile, setOpenDeleteAllFile] = useState(false);
+  const [isMobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const itemLength = orders?.length || 0;
   const isAllSelected = itemLength && selectedUuids.size === itemLength;
+  const isSearchExpanded = isMobileSearchOpen || Boolean(search);
+
+  useEffect(() => {
+    if (!isMobileSearchOpen) return;
+
+    searchInputRef.current?.focus();
+  }, [isMobileSearchOpen]);
 
   const handleCloseDeleteList = () => {
     setOpenDeleteList(false);
@@ -210,14 +219,17 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
 
   const handleClickClearSearchButton = () => {
     setSearch('');
+    setMobileSearchOpen(false);
   };
 
-  const handleClickSearchButton = () => {};
+  const handleClickSearchButton = () => {
+    setMobileSearchOpen(true);
+  };
 
   return (
     <div
       className={cn(
-        'flex justify-between items-center mb-4 flex-nowrap gap-2',
+        'relative flex min-h-8 justify-between items-center mb-4 flex-nowrap gap-2',
         isSelectMode && 'flex-wrap'
       )}
     >
@@ -261,10 +273,21 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         {isSelectMode ? (
           <h1 className='text-center text-lg font-bold whitespace-nowrap'>Select Mode</h1>
         ) : null}
-        <div className='ml-auto flex min-w-0 flex-1 items-center justify-between rounded-full shadow-sm'>
+        <div
+          className={cn(
+            'ml-auto flex h-8 shrink-0 items-center justify-end rounded-full bg-background shadow-sm transition-[width] duration-200 ease-out lg:static lg:min-w-0 lg:flex-1',
+            isSearchExpanded
+              ? 'absolute inset-y-0 right-0 z-20 w-full'
+              : 'w-8 lg:w-auto'
+          )}
+        >
           <Input
+            ref={searchInputRef}
             type='text'
-            className='h-8 min-w-0 flex-1 shrink p-1 pl-3 rounded-full rounded-r-none border-none'
+            className={cn(
+              'h-8 min-w-0 flex-1 shrink rounded-full rounded-r-none border-none p-1 pl-3 transition-opacity duration-150',
+              isSearchExpanded ? 'opacity-100' : 'pointer-events-none w-0 flex-none opacity-0 lg:pointer-events-auto lg:w-auto lg:flex-1 lg:opacity-100'
+            )}
             value={search}
             placeholder='Search title, filename'
             onChange={handleChangeSearchValue}
@@ -286,7 +309,10 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
               type='button'
               variant='outline'
               size='icon'
-              className='h-8 px-1 text-xl rounded-full rounded-l-none border-none text-muted-foreground hover:text-muted-foreground'
+              className={cn(
+                'h-8 px-1 text-xl rounded-full border-none text-muted-foreground hover:text-muted-foreground',
+                isSearchExpanded ? 'rounded-l-none' : 'lg:rounded-l-none'
+              )}
               onClick={handleClickSearchButton}
             >
               <AiOutlineSearch />

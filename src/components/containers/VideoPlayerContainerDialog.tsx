@@ -54,7 +54,7 @@ export function VideoPlayerContainer() {
     >
       <DialogContent
         className='h-screen max-w-none p-0 border-none rounded-none bg-transparent transition-none'
-        overlayClassName='bg-black/90 dark:bg-black/70 backdrop-blur-lg'
+        overlayClassName='bg-black/45 dark:bg-black/55 backdrop-blur-sm'
         onOpenAutoFocus={(evt) => evt.preventDefault()}
         hideCloseButton
       >

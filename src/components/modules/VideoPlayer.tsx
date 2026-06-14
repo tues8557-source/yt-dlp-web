@@ -21,7 +21,6 @@ import {
   PinOff,
   Play,
   Repeat,
-  Repeat1,
   Share2,
   Volume2,
   VolumeX,
@@ -142,6 +141,8 @@ export function VideoPlayer({
   const [playbackFeedback, setPlaybackFeedback] = useState<'play' | 'pause' | ''>('');
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareWithStartTime, setShareWithStartTime] = useState(false);
+  const [edgeSwipeOffset, setEdgeSwipeOffset] = useState(0);
+  const [isEdgeSwipeClosing, setEdgeSwipeClosing] = useState(false);
   const isTopSticky = _isTopSticky && videoInfo.type === 'video';
   const isTheaterMode = isWideScreen || isTopSticky;
   const playlistItems = useMemo(
@@ -175,7 +176,6 @@ export function VideoPlayer({
     isMounted,
     shareWithStartTime ? currentTime : 0
   );
-  const hasFullscreenSupport = isMounted && document.fullscreenEnabled;
   const variantItems = Array.isArray(videoInfo.variants) ? videoInfo.variants : [];
   const isAudioOnly = isAudioFile(videoInfo);
   const playerThumbnailUrl = `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}`;
@@ -302,6 +302,16 @@ export function VideoPlayer({
     }
 
     close();
+  };
+
+  const handleAnimatedClose = () => {
+    if (isEdgeSwipeClosing) return;
+
+    setEdgeSwipeClosing(true);
+    setEdgeSwipeOffset(typeof window !== 'undefined' ? window.innerWidth : 480);
+    window.setTimeout(() => {
+      handleClose();
+    }, 180);
   };
 
   const togglePlayback = async () => {
@@ -685,6 +695,7 @@ export function VideoPlayer({
 
   const handleEdgeTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0];
+    if (isEdgeSwipeClosing) return;
     if (!touch || touch.clientX > 28) {
       edgeTouchStartRef.current = null;
       return;
@@ -696,6 +707,21 @@ export function VideoPlayer({
     };
   };
 
+  const handleEdgeTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    const start = edgeTouchStartRef.current;
+    const touch = event.touches[0];
+    if (!start || !touch || isEdgeSwipeClosing) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (deltaX <= 0 || Math.abs(deltaY) > 90) {
+      setEdgeSwipeOffset(0);
+      return;
+    }
+
+    setEdgeSwipeOffset(Math.min(deltaX, window.innerWidth));
+  };
+
   const handleEdgeTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
     const start = edgeTouchStartRef.current;
     edgeTouchStartRef.current = null;
@@ -705,8 +731,11 @@ export function VideoPlayer({
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (deltaX > 80 && Math.abs(deltaY) < 70) {
-      handleClose();
+      handleAnimatedClose();
+      return;
     }
+
+    setEdgeSwipeOffset(0);
   };
 
   const playerSurface = (
@@ -786,7 +815,6 @@ export function VideoPlayer({
         controlsVisible={controlsVisible}
         currentTime={currentTime}
         duration={duration}
-        hasFullscreenSupport={hasFullscreenSupport}
         isMuted={isMuted}
         isPlaying={isPlaying}
         repeatMode={effectiveRepeatMode}
@@ -807,8 +835,7 @@ export function VideoPlayer({
     return (
       <div className='group relative flex h-full min-w-[var(--site-min-width)] flex-col items-center overflow-hidden bg-black text-white'>
         <CompactPlayerBar
-          hasFullscreenSupport={hasFullscreenSupport}
-          isTopSticky={isTopSticky}
+        isTopSticky={isTopSticky}
           isWideScreen={isWideScreen}
           originalUrl={videoInfo.url}
           title={videoInfo.title}
@@ -836,9 +863,20 @@ export function VideoPlayer({
 
   return (
     <div
-      className='h-full min-w-[var(--site-min-width)] overflow-hidden bg-background text-foreground md:overflow-y-auto'
+      className={cn(
+        'h-full min-w-[var(--site-min-width)] overflow-hidden bg-background text-foreground shadow-[-18px_0_40px_rgba(0,0,0,0.28)] md:overflow-y-auto',
+        isEdgeSwipeClosing ? 'transition-transform duration-200 ease-out' : edgeSwipeOffset > 0 && 'transition-none'
+      )}
+      style={{
+        transform: edgeSwipeOffset ? `translate3d(${edgeSwipeOffset}px, 0, 0)` : undefined
+      }}
       onTouchStart={handleEdgeTouchStart}
+      onTouchMove={handleEdgeTouchMove}
       onTouchEnd={handleEdgeTouchEnd}
+      onTouchCancel={() => {
+        edgeTouchStartRef.current = null;
+        setEdgeSwipeOffset(0);
+      }}
     >
       <div className='mx-auto flex h-full w-full max-w-[1280px] flex-col gap-4 px-3 py-3 md:grid md:h-auto md:px-5'>
         <main className='flex min-h-0 min-w-0 flex-1 flex-col md:block'>
@@ -918,7 +956,6 @@ type PlayerControlsProps = {
   controlsVisible: boolean;
   currentTime: number;
   duration: number;
-  hasFullscreenSupport: boolean;
   isMuted: boolean;
   isPlaying: boolean;
   progressRef: RefObject<HTMLInputElement>;
@@ -937,7 +974,6 @@ function PlayerControls({
   controlsVisible,
   currentTime,
   duration,
-  hasFullscreenSupport,
   isMuted,
   isPlaying,
   progressRef,
@@ -988,14 +1024,16 @@ function PlayerControls({
           <Button
             variant='ghost'
             size='icon'
-            className={cn(
-              'h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white',
-              repeatMode !== 'none' && 'text-red-400 hover:text-red-300'
-            )}
+            className='relative h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
             onClick={onRepeat}
             title={getRepeatTitle(repeatMode)}
           >
-            {repeatMode === 'one' ? <Repeat1 className='h-5 w-5' /> : <Repeat className='h-5 w-5' />}
+            <Repeat className='h-5 w-5' />
+            {repeatMode !== 'none' && (
+              <span className='absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-white px-0.5 text-[9px] font-bold leading-none text-black'>
+                {repeatMode === 'one' ? '1' : 'A'}
+              </span>
+            )}
           </Button>
           <Button
             variant='ghost'
@@ -1015,17 +1053,15 @@ function PlayerControls({
             className='hidden h-1 w-20 cursor-pointer accent-white sm:block'
             aria-label='Volume'
           />
-          {hasFullscreenSupport && (
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-              onClick={onFullscreen}
-              title='Full screen'
-            >
-              <Maximize2 className='h-5 w-5' />
-            </Button>
-          )}
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+            onClick={onFullscreen}
+            title='Full screen'
+          >
+            <Maximize2 className='h-5 w-5' />
+          </Button>
           <Button
             variant='ghost'
             size='icon'
@@ -1042,7 +1078,6 @@ function PlayerControls({
 }
 
 type CompactPlayerBarProps = {
-  hasFullscreenSupport: boolean;
   isTopSticky: boolean;
   isWideScreen: boolean;
   isCapturingThumbnail: boolean;
@@ -1062,7 +1097,6 @@ type CompactPlayerBarProps = {
 };
 
 function CompactPlayerBar({
-  hasFullscreenSupport,
   isCapturingThumbnail,
   isRemovingThumbnail,
   isTopSticky,
@@ -1129,17 +1163,15 @@ function CompactPlayerBar({
         >
           {isWideScreen ? <TbViewportNarrow /> : <TbViewportWide />}
         </Button>
-        {hasFullscreenSupport && (
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-8 w-8 shrink-0 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onFullscreen}
-            title='Full screen'
-          >
-            <Maximize2 className='h-4 w-4' />
-          </Button>
-        )}
+        <Button
+          variant='ghost'
+          size='icon'
+          className='h-8 w-8 shrink-0 rounded-full text-white hover:bg-white/15 hover:text-white'
+          onClick={onFullscreen}
+          title='Full screen'
+        >
+          <Maximize2 className='h-4 w-4' />
+        </Button>
       </div>
     </div>
   );
