@@ -52,6 +52,10 @@ export type VideoPlayerVideoInfo = {
   uuid: string;
   title?: string | null;
   url: string;
+  thumbnail?: string | null;
+  localThumbnail?: string | null;
+  thumbnailSource?: VideoInfo['thumbnailSource'];
+  updatedAt?: number;
   uploadDate?: string | null;
   filename?: string | null;
   startTime?: number;
@@ -94,6 +98,10 @@ export type VideoPlayerFileVariant = {
   uuid: string;
   title?: string | null;
   url: string;
+  thumbnail?: string | null;
+  localThumbnail?: string | null;
+  thumbnailSource?: VideoInfo['thumbnailSource'];
+  updatedAt?: number;
   uploadDate?: string | null;
   filename?: string | null;
   size?: number;
@@ -126,6 +134,7 @@ export function VideoPlayer({
   const [currentTime, setLocalCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [controlsActivity, setControlsActivity] = useState(0);
   const [isMounted, setMounted] = useState(false);
   const [copiedShareTarget, setCopiedShareTarget] = useState<ShareTarget | ''>('');
   const [isCapturingThumbnail, setCapturingThumbnail] = useState(false);
@@ -272,6 +281,16 @@ export function VideoPlayer({
     }
   }, [effectiveRepeatMode, videoInfo]);
 
+  useEffect(() => {
+    if (!controlsVisible) return;
+
+    const timeout = window.setTimeout(() => {
+      setControlsVisible(false);
+    }, 2400);
+
+    return () => window.clearTimeout(timeout);
+  }, [controlsVisible, isPlaying, controlsActivity, videoInfo.uuid, videoInfo.playlistVideoUuid]);
+
   const handleClose = () => {
     const close = useVideoPlayerStore.getState().close;
     const videoEl = videoRef.current;
@@ -380,6 +399,10 @@ export function VideoPlayer({
       title: variant.title,
       type: 'video',
       url: variant.url,
+      thumbnail: variant.thumbnail,
+      localThumbnail: variant.localThumbnail,
+      thumbnailSource: variant.thumbnailSource,
+      updatedAt: variant.updatedAt,
       filename: variant.filename,
       size: variant.size,
       duration: variant.duration,
@@ -405,6 +428,10 @@ export function VideoPlayer({
       title: queueVideo.title,
       type: 'video',
       url: queueVideo.url,
+      thumbnail: queueVideo.thumbnail,
+      localThumbnail: queueVideo.localThumbnail,
+      thumbnailSource: queueVideo.thumbnailSource,
+      updatedAt: queueVideo.updatedAt,
       filename: queueVideo.filename,
       size: queueVideo.size,
       duration: queueVideo.duration,
@@ -525,7 +552,7 @@ export function VideoPlayer({
     if (isCapturingThumbnail) return;
 
     const videoEl = videoRef.current as HTMLVideoElement | null;
-    if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+    if (!videoEl) {
       toast.error('The current frame cannot be captured yet.');
       return;
     }
@@ -533,6 +560,11 @@ export function VideoPlayer({
     setCapturingThumbnail(true);
 
     try {
+      if (!videoEl.videoWidth || !videoEl.videoHeight) {
+        await captureThumbnailOnServer(Number(videoEl.currentTime) || currentTime || 0);
+        return;
+      }
+
       const canvas = document.createElement('canvas');
       canvas.width = videoEl.videoWidth;
       canvas.height = videoEl.videoHeight;
@@ -557,7 +589,8 @@ export function VideoPlayer({
       const result = await response.json().catch(() => null);
 
       if (!response.ok || !result?.success || result?.error) {
-        throw new Error(result?.error || 'Failed to update thumbnail.');
+        await captureThumbnailOnServer(Number(videoEl.currentTime) || currentTime || 0);
+        return;
       }
 
       toast.success('Updated thumbnail from the current frame.');
@@ -567,6 +600,29 @@ export function VideoPlayer({
     } finally {
       setCapturingThumbnail(false);
     }
+  };
+
+  const captureThumbnailOnServer = async (time: number) => {
+    const params = new URLSearchParams({
+      uuid: videoInfo.uuid,
+      action: 'frame',
+      time: `${Math.max(0, time)}`
+    });
+    if (videoInfo.playlistVideoUuid) {
+      params.set('itemUuid', videoInfo.playlistVideoUuid);
+    }
+
+    const response = await fetch(`/api/thumbnail?${params.toString()}`, {
+      method: 'POST'
+    });
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok || !result?.success || result?.error) {
+      throw new Error(result?.error || 'Failed to update thumbnail.');
+    }
+
+    toast.success('Updated thumbnail from the current frame.');
+    mutate('/api/list');
   };
 
   const handleRemoveLocalThumbnail = async () => {
@@ -597,6 +653,7 @@ export function VideoPlayer({
 
   const handleShowControls = () => {
     setControlsVisible(true);
+    setControlsActivity((value) => value + 1);
   };
 
   const handleHideControls = () => {
@@ -1148,12 +1205,7 @@ function MediaQueuePanel({
                 onClick={() => onOpenQueueVideo(item)}
               >
                 <div className='relative aspect-video w-32 shrink-0 overflow-hidden rounded-md bg-black/80'>
-                  <img
-                    src={`/api/thumbnail?uuid=${item.uuid}`}
-                    alt=''
-                    className='h-full w-full object-cover'
-                    loading='lazy'
-                  />
+                  <QueueThumbnail item={item} />
                   {item.duration && (
                     <span className='absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-xs text-white'>
                       {formatDuration(item.duration)}
@@ -1244,6 +1296,10 @@ function MediaQueuePanel({
           filename: videoInfo.filename,
           size: videoInfo.size,
           duration: videoInfo.duration,
+          thumbnail: videoInfo.thumbnail,
+          localThumbnail: videoInfo.localThumbnail,
+          thumbnailSource: videoInfo.thumbnailSource,
+          updatedAt: videoInfo.updatedAt,
           width: videoInfo.width,
           height: videoInfo.height,
           rFrameRate: videoInfo.rFrameRate,
@@ -1274,12 +1330,7 @@ function MediaQueuePanel({
               onClick={() => onOpenVariant(variant)}
             >
               <div className='relative aspect-video w-32 shrink-0 overflow-hidden rounded-md bg-black/80'>
-                <img
-                  src={`/api/thumbnail?uuid=${variant.uuid}`}
-                  alt=''
-                  className='h-full w-full object-cover'
-                  loading='lazy'
-                />
+                <QueueThumbnail item={variant} />
                 {isAudioFile(variant) && (
                   <span className='absolute left-1 top-1 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white'>
                     Audio
@@ -1318,6 +1369,43 @@ function MediaQueuePanel({
         })}
       </div>
     </section>
+  );
+}
+
+function QueueThumbnail({ item }: { item: Pick<VideoPlayerFileVariant, 'thumbnail' | 'updatedAt' | 'uuid'> }) {
+  const sources = useMemo(() => {
+    const localUrl = `/api/thumbnail?uuid=${encodeURIComponent(item.uuid)}${
+      item.updatedAt ? `&v=${item.updatedAt}` : ''
+    }`;
+    const remoteUrl = item.thumbnail || '';
+    const proxyUrl = remoteUrl ? `/api/image?url=${encodeURIComponent(remoteUrl)}` : '';
+
+    return [localUrl, remoteUrl, proxyUrl].filter(Boolean);
+  }, [item.thumbnail, item.updatedAt, item.uuid]);
+  const [sourceIndex, setSourceIndex] = useState(0);
+
+  useEffect(() => {
+    setSourceIndex(0);
+  }, [sources]);
+
+  const src = sources[sourceIndex] || '';
+
+  if (!src) {
+    return (
+      <div className='flex h-full w-full items-center justify-center bg-black text-white/35'>
+        <Music2 className='h-8 w-8' />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=''
+      className='h-full w-full object-cover'
+      loading='lazy'
+      onError={() => setSourceIndex((index) => Math.min(index + 1, sources.length))}
+    />
   );
 }
 

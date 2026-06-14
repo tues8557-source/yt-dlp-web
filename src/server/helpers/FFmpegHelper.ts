@@ -203,6 +203,46 @@ export class FFmpegHelper {
     });
   }
 
+  async extractFrameThumbnail(outputPath: string, time = 0) {
+    if (!this.filePath) {
+      throw 'file path is not found';
+    }
+
+    await fs.mkdir(parse(outputPath).dir, { recursive: true });
+
+    return new Promise((resolve: (filePath: string) => void, reject: (message: string) => void) => {
+      const ffmpeg = spawn('ffmpeg', [
+        '-y',
+        '-loglevel',
+        'error',
+        '-ss',
+        `${Math.max(0, time)}`,
+        '-i',
+        this.filePath,
+        '-map',
+        '0:v:0',
+        '-frames:v',
+        '1',
+        '-update',
+        '1',
+        outputPath
+      ]);
+
+      let stderr = '';
+      ffmpeg.stderr.setEncoding('utf-8');
+      ffmpeg.stderr.on('data', (data) => {
+        stderr += data?.trim?.() || '';
+      });
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve(outputPath);
+          return;
+        }
+        reject(stderr || 'Failed to extract current frame');
+      });
+    });
+  }
+
   private async getEmbeddedThumbnailStreamIndex() {
     const ffprobe = spawn('ffprobe', [
       '-v',

@@ -96,6 +96,23 @@ export async function POST(request: Request) {
       });
     }
 
+    if (action === 'frame') {
+      const itemUuid = urlObject.searchParams.get('itemUuid') || '';
+      const time = Number(urlObject.searchParams.get('time') || 0);
+      await extractFrameThumbnailFromVideo(
+        uuid,
+        videoInfo,
+        Number.isFinite(time) && time > 0 ? time : 0,
+        itemUuid
+      );
+
+      return NextJson({
+        success: true,
+        localThumbnail: videoInfo.localThumbnail,
+        thumbnailSource: videoInfo.thumbnailSource
+      });
+    }
+
     if (action === 'remove') {
       await removeLocalThumbnail(videoInfo);
       videoInfo.localThumbnail = null;
@@ -186,7 +203,7 @@ async function extractThumbnailFromVideo(
   videoInfo: VideoInfo,
   thumbnailSource?: VideoInfo['thumbnailSource']
 ) {
-  const videoPath = videoInfo.files?.original?.path || videoInfo.file?.path;
+  const videoPath = getThumbnailSourceVideoPath(videoInfo);
   if (!videoPath) {
     throw 'Not Found';
   }
@@ -204,4 +221,40 @@ async function extractThumbnailFromVideo(
   await CacheHelper.set(uuid, videoInfo);
 
   return extractedThumbnailPath;
+}
+
+async function extractFrameThumbnailFromVideo(
+  uuid: string,
+  videoInfo: VideoInfo,
+  time: number,
+  itemUuid?: string
+) {
+  const videoPath = getThumbnailSourceVideoPath(videoInfo, itemUuid);
+  if (!videoPath) {
+    throw 'Not Found';
+  }
+
+  const extractedThumbnailPath = getThumbnailFilePath(`${uuid}.png`);
+  await new FFmpegHelper({ filePath: videoPath, fileUuid: uuid }).extractFrameThumbnail(
+    extractedThumbnailPath,
+    time
+  );
+
+  videoInfo.localThumbnail = `${uuid}.png`;
+  videoInfo.thumbnailSource = 'custom';
+  videoInfo.updatedAt = Date.now();
+  await CacheHelper.set(uuid, videoInfo);
+
+  return extractedThumbnailPath;
+}
+
+function getThumbnailSourceVideoPath(videoInfo: VideoInfo, itemUuid?: string) {
+  if (itemUuid && Array.isArray(videoInfo.playlist)) {
+    const playlistItem = videoInfo.playlist.find((item) => item.uuid === itemUuid);
+    if (playlistItem?.path) {
+      return playlistItem.path;
+    }
+  }
+
+  return videoInfo.files?.original?.path || videoInfo.file?.path;
 }
