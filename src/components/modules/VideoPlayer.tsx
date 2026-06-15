@@ -88,6 +88,7 @@ type TouchPoint = {
   x: number;
   y: number;
 };
+type CloseAnimationDirection = 'right' | 'down';
 type FullscreenOrientationLock = 'portrait' | 'landscape';
 type LockableScreenOrientation = ScreenOrientation & {
   lock?: (orientation: FullscreenOrientationLock) => Promise<void>;
@@ -143,6 +144,8 @@ export function VideoPlayer({
   const [shareWithStartTime, setShareWithStartTime] = useState(false);
   const [edgeSwipeOffset, setEdgeSwipeOffset] = useState(0);
   const [isEdgeSwipeClosing, setEdgeSwipeClosing] = useState(false);
+  const [closeAnimationDirection, setCloseAnimationDirection] =
+    useState<CloseAnimationDirection>('right');
   const isTopSticky = _isTopSticky && videoInfo.type === 'video';
   const isTheaterMode = isWideScreen || isTopSticky;
   const playlistItems = useMemo(
@@ -304,9 +307,10 @@ export function VideoPlayer({
     close();
   };
 
-  const handleAnimatedClose = () => {
+  const handleAnimatedClose = (direction: CloseAnimationDirection = 'right') => {
     if (isEdgeSwipeClosing) return;
 
+    setCloseAnimationDirection(direction);
     setEdgeSwipeClosing(true);
     setEdgeSwipeOffset(typeof window !== 'undefined' ? window.innerWidth : 480);
     window.setTimeout(() => {
@@ -689,7 +693,7 @@ export function VideoPlayer({
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (deltaY > 80 && Math.abs(deltaX) < 80) {
-      handleAnimatedClose();
+      handleAnimatedClose('down');
       return;
     }
 
@@ -736,7 +740,7 @@ export function VideoPlayer({
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (deltaX > 80 && Math.abs(deltaY) < 70) {
-      handleAnimatedClose();
+      handleAnimatedClose('right');
       return;
     }
 
@@ -873,7 +877,11 @@ export function VideoPlayer({
         isEdgeSwipeClosing ? 'transition-transform duration-200 ease-out' : edgeSwipeOffset > 0 && 'transition-none'
       )}
       style={{
-        transform: edgeSwipeOffset ? `translate3d(${edgeSwipeOffset}px, 0, 0)` : undefined
+        transform: edgeSwipeOffset
+          ? closeAnimationDirection === 'down'
+            ? `translate3d(0, ${edgeSwipeOffset}px, 0)`
+            : `translate3d(${edgeSwipeOffset}px, 0, 0)`
+          : undefined
       }}
       onTouchStart={handleEdgeTouchStart}
       onTouchMove={handleEdgeTouchMove}
