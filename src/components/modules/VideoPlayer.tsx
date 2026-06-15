@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, MouseEvent, RefObject, TouchEvent } from 'react';
+import type { CSSProperties, ChangeEvent, MouseEvent, RefObject, TouchEvent } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
 import {
@@ -89,6 +89,7 @@ type TouchPoint = {
   y: number;
 };
 type CloseAnimationDirection = 'right' | 'down';
+type SurfaceSwipeDirection = 'up' | 'down' | null;
 type FullscreenOrientationLock = 'portrait' | 'landscape';
 type LockableScreenOrientation = ScreenOrientation & {
   lock?: (orientation: FullscreenOrientationLock) => Promise<void>;
@@ -128,6 +129,8 @@ export function VideoPlayer({
   const playerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const progressRef = useRef<HTMLInputElement>(null);
   const surfaceTouchStartRef = useRef<TouchPoint | null>(null);
+  const surfaceSwipeDirectionRef = useRef<SurfaceSwipeDirection>(null);
+  const surfaceSwipeMovedRef = useRef(false);
   const edgeTouchStartRef = useRef<TouchPoint | null>(null);
   const [isPlaying, setPlaying] = useState(false);
   const [isMuted, setMuted] = useState(false);
@@ -142,6 +145,8 @@ export function VideoPlayer({
   const [playbackFeedback, setPlaybackFeedback] = useState<'play' | 'pause' | ''>('');
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareWithStartTime, setShareWithStartTime] = useState(false);
+  const [surfaceSwipeOffset, setSurfaceSwipeOffset] = useState(0);
+  const [isSurfaceSwipeReleasing, setSurfaceSwipeReleasing] = useState(false);
   const [edgeSwipeOffset, setEdgeSwipeOffset] = useState(0);
   const [isEdgeSwipeClosing, setEdgeSwipeClosing] = useState(false);
   const [closeAnimationDirection, setCloseAnimationDirection] =
@@ -312,7 +317,7 @@ export function VideoPlayer({
 
     setCloseAnimationDirection(direction);
     setEdgeSwipeClosing(true);
-    setEdgeSwipeOffset(typeof window !== 'undefined' ? window.innerWidth : 480);
+    setEdgeSwipeOffset(getCloseAnimationDistance(direction));
     window.setTimeout(() => {
       handleClose();
     }, 180);
@@ -343,6 +348,10 @@ export function VideoPlayer({
     event.stopPropagation();
     const videoEl = videoRef.current;
     if (!videoEl) return;
+    if (surfaceSwipeMovedRef.current) {
+      surfaceSwipeMovedRef.current = false;
+      return;
+    }
 
     videoEl.volume = typeof volume === 'number' ? volume : 0.75;
     const action = await togglePlayback();
@@ -674,32 +683,79 @@ export function VideoPlayer({
     setControlsVisible(false);
   };
 
+  const resetSurfaceSwipe = () => {
+    surfaceTouchStartRef.current = null;
+    surfaceSwipeDirectionRef.current = null;
+    setSurfaceSwipeReleasing(true);
+    setSurfaceSwipeOffset(0);
+    window.setTimeout(() => setSurfaceSwipeReleasing(false), 180);
+  };
+
   const handleSurfaceTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0];
     if (!touch) return;
 
+    setSurfaceSwipeReleasing(false);
+    setSurfaceSwipeOffset(0);
+    surfaceSwipeDirectionRef.current = null;
+    surfaceSwipeMovedRef.current = false;
     surfaceTouchStartRef.current = {
       x: touch.clientX,
       y: touch.clientY
     };
   };
 
+  const handleSurfaceTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    const start = surfaceTouchStartRef.current;
+    const touch = event.touches[0];
+    if (!start || !touch || isEdgeSwipeClosing) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+
+    if (!surfaceSwipeDirectionRef.current) {
+      if (absDeltaY < 12 || absDeltaY < absDeltaX * 1.15) return;
+      surfaceSwipeDirectionRef.current = deltaY > 0 ? 'down' : 'up';
+    }
+
+    if (absDeltaY > 4) {
+      surfaceSwipeMovedRef.current = true;
+    }
+
+    event.preventDefault();
+    setControlsVisible(false);
+    setSurfaceSwipeOffset(clampSurfaceSwipeOffset(deltaY));
+  };
+
   const handleSurfaceTouchEnd = async (event: TouchEvent<HTMLDivElement>) => {
     const start = surfaceTouchStartRef.current;
     surfaceTouchStartRef.current = null;
+    surfaceSwipeDirectionRef.current = null;
     const touch = event.changedTouches[0];
     if (!start || !touch) return;
 
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (deltaY > 80 && Math.abs(deltaX) < 80) {
+      setSurfaceSwipeReleasing(true);
       handleAnimatedClose('down');
       return;
     }
 
     if (deltaY < -70 && Math.abs(deltaX) < 70) {
+      setSurfaceSwipeReleasing(true);
+      setSurfaceSwipeOffset(-getSurfaceFullscreenReleaseDistance());
+      window.setTimeout(() => {
+        setSurfaceSwipeOffset(0);
+        setSurfaceSwipeReleasing(false);
+      }, 180);
       await enterFullscreenWithOrientation();
+      return;
     }
+
+    resetSurfaceSwipe();
   };
 
   const handleEdgeTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -750,12 +806,20 @@ export function VideoPlayer({
   const playerSurface = (
     <div
       ref={playerSurfaceRef}
-      className='relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-sm'
+      className={cn(
+        'relative aspect-video w-full touch-none overflow-hidden rounded-lg bg-black shadow-sm will-change-transform',
+        isSurfaceSwipeReleasing
+          ? 'transition-transform duration-200 ease-out'
+          : surfaceSwipeOffset && 'transition-none'
+      )}
+      style={getSurfaceSwipeStyle(surfaceSwipeOffset)}
       onMouseEnter={handleShowControls}
       onMouseMove={handleShowControls}
       onMouseLeave={handleHideControls}
       onTouchStart={handleSurfaceTouchStart}
+      onTouchMove={handleSurfaceTouchMove}
       onTouchEnd={handleSurfaceTouchEnd}
+      onTouchCancel={resetSurfaceSwipe}
     >
       {isAudioOnly ? (
         <audio
@@ -1695,6 +1759,49 @@ function MoreMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function clampSurfaceSwipeOffset(deltaY: number) {
+  const maxDown = typeof window !== 'undefined' ? Math.min(window.innerHeight * 0.42, 320) : 240;
+  const maxUp = typeof window !== 'undefined' ? Math.min(window.innerHeight * 0.22, 170) : 140;
+
+  return Math.min(Math.max(deltaY, -maxUp), maxDown);
+}
+
+function getSurfaceSwipeStyle(offset: number): CSSProperties | undefined {
+  if (!offset) return undefined;
+
+  if (offset > 0) {
+    const progress = Math.min(offset / 220, 1);
+    const scale = 1 - progress * 0.14;
+
+    return {
+      transform: `translate3d(0, ${offset}px, 0) scale(${scale})`,
+      transformOrigin: 'center top'
+    };
+  }
+
+  const pull = Math.abs(offset);
+  const progress = Math.min(pull / 150, 1);
+  const scale = 1 + progress * 0.08;
+  const translateY = -Math.min(pull * 0.42, 72);
+
+  return {
+    transform: `translate3d(0, ${translateY}px, 0) scale(${scale})`,
+    transformOrigin: 'center top'
+  };
+}
+
+function getCloseAnimationDistance(direction: CloseAnimationDirection) {
+  if (typeof window === 'undefined') return 480;
+
+  return direction === 'down' ? window.innerHeight : window.innerWidth;
+}
+
+function getSurfaceFullscreenReleaseDistance() {
+  if (typeof window === 'undefined') return 160;
+
+  return Math.min(window.innerHeight * 0.24, 190);
 }
 
 function getShareLinks(
