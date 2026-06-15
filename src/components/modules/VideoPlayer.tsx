@@ -142,6 +142,7 @@ export function VideoPlayer({
   const longPressOriginalRateRef = useRef(1);
   const isLongPressActiveRef = useRef(false);
   const suppressNextClickRef = useRef(false);
+  const originalDocumentTitleRef = useRef<string | null>(null);
   const [isPlaying, setPlaying] = useState(false);
   const [isMuted, setMuted] = useState(false);
   const [currentTime, setLocalCurrentTime] = useState(0);
@@ -308,6 +309,87 @@ export function VideoPlayer({
 
     return () => window.clearTimeout(timeout);
   }, [controlsVisible, isPlaying, controlsActivity, videoInfo.uuid, videoInfo.playlistVideoUuid]);
+
+  useEffect(() => {
+    if (!isMounted || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    if (!originalDocumentTitleRef.current) {
+      originalDocumentTitleRef.current = document.title;
+    }
+
+    const mediaTitle = getMediaTitle(videoInfo);
+    document.title = mediaTitle;
+
+    if (typeof MediaMetadata === 'function') {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: mediaTitle,
+        artist: videoInfo.playlistTitle || videoInfo.queueTitle || 'yt-dlp-web',
+        album: videoInfo.playlistTitle || videoInfo.queueTitle || '',
+        artwork: getMediaArtwork(videoInfo, window.location.origin)
+      });
+    }
+
+    setMediaSessionActionHandler('play', async () => {
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+
+      try {
+        await videoEl.play();
+        setPlaying(true);
+      } catch (e) {}
+    });
+    setMediaSessionActionHandler('pause', () => {
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+
+      videoEl.pause();
+      setPlaying(false);
+    });
+    setMediaSessionActionHandler('seekbackward', (details) => {
+      seekBy(-(details.seekOffset || 10));
+    });
+    setMediaSessionActionHandler('seekforward', (details) => {
+      seekBy(details.seekOffset || 10);
+    });
+    setMediaSessionActionHandler('seekto', (details) => {
+      const videoEl = videoRef.current;
+      if (!videoEl || typeof details.seekTime !== 'number') return;
+
+      const nextTime = Math.min(Math.max(details.seekTime, 0), Number(videoEl.duration) || duration || 0);
+      videoEl.currentTime = nextTime;
+      setLocalCurrentTime(nextTime);
+      useVideoPlayerStore.getState().setCurrentTime(nextTime);
+    });
+
+    return () => {
+      if (originalDocumentTitleRef.current) {
+        document.title = originalDocumentTitleRef.current;
+      }
+      navigator.mediaSession.metadata = null;
+      setMediaSessionActionHandler('play', null);
+      setMediaSessionActionHandler('pause', null);
+      setMediaSessionActionHandler('seekbackward', null);
+      setMediaSessionActionHandler('seekforward', null);
+      setMediaSessionActionHandler('seekto', null);
+    };
+    // Media session handlers read the current media element and duration at call time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, videoInfo]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    if (!duration || !Number.isFinite(duration)) return;
+
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: Number(videoRef.current?.playbackRate) || 1,
+        position: Math.min(currentTime, duration)
+      });
+    } catch (e) {}
+  }, [currentTime, duration, isPlaying]);
 
   useEffect(() => {
     if (videoInfo.type !== 'video' || typeof window === 'undefined') return;
@@ -2048,6 +2130,57 @@ function isLikelyMobileViewport() {
   const longSide = Math.max(window.innerWidth, window.innerHeight);
 
   return hasCoarsePointer && !canHover && shortSide <= 540 && longSide <= 1000;
+}
+
+function getMediaTitle(videoInfo: VideoPlayerVideoInfo) {
+  return videoInfo.title || videoInfo.filename || videoInfo.url || 'yt-dlp-web';
+}
+
+function getMediaArtwork(videoInfo: VideoPlayerVideoInfo, origin: string): MediaImage[] {
+  const localThumbnailUrl = toAbsoluteUrl(
+    `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}${
+      videoInfo.updatedAt ? `&v=${videoInfo.updatedAt}` : ''
+    }`,
+    origin
+  );
+  const remoteThumbnailUrl = toAbsoluteUrl(videoInfo.thumbnail || '', origin);
+  const proxiedRemoteThumbnailUrl = videoInfo.thumbnail
+    ? toAbsoluteUrl(`/api/image?url=${encodeURIComponent(videoInfo.thumbnail)}`, origin)
+    : '';
+
+  return [
+    createMediaImage(localThumbnailUrl),
+    createMediaImage(remoteThumbnailUrl),
+    createMediaImage(proxiedRemoteThumbnailUrl)
+  ].filter(Boolean) as MediaImage[];
+}
+
+function createMediaImage(src: string): MediaImage | null {
+  if (!src) return null;
+
+  return {
+    src,
+    sizes: '512x512'
+  };
+}
+
+function toAbsoluteUrl(url: string, origin: string) {
+  if (!url) return '';
+
+  try {
+    return new URL(url, origin).toString();
+  } catch (e) {
+    return '';
+  }
+}
+
+function setMediaSessionActionHandler(
+  action: MediaSessionAction,
+  handler: MediaSessionActionHandler | null
+) {
+  try {
+    navigator.mediaSession.setActionHandler(action, handler);
+  } catch (e) {}
 }
 
 function getShareLinks(
