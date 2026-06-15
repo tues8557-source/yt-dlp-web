@@ -281,17 +281,17 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         ) : null}
         <div
           className={cn(
-            'ml-auto flex h-8 shrink-0 items-center justify-end rounded-full bg-background shadow-sm transition-[width] duration-200 ease-out lg:static lg:min-w-0 lg:flex-1',
+            'ml-auto flex shrink-0 items-center justify-end rounded-full bg-background shadow-sm transition-[width,height] duration-200 ease-out lg:static lg:h-8 lg:min-w-0 lg:flex-1 lg:px-0',
             isSearchExpanded
-              ? 'absolute inset-y-0 right-0 z-20 w-full'
-              : 'w-8 lg:w-auto'
+              ? 'absolute -inset-y-1 right-0 z-30 h-10 w-full border px-1 lg:inset-y-0 lg:border-0'
+              : 'h-8 w-8 lg:w-auto'
           )}
         >
           <Input
             ref={searchInputRef}
             type='text'
             className={cn(
-              'h-8 min-w-0 flex-1 shrink rounded-full rounded-r-none border-none p-1 pl-3 transition-opacity duration-150',
+              'h-full min-w-0 flex-1 shrink rounded-full rounded-r-none border-none p-1 pl-3 transition-opacity duration-150',
               isSearchExpanded ? 'opacity-100' : 'pointer-events-none w-0 flex-none opacity-0 lg:pointer-events-auto lg:w-auto lg:flex-1 lg:opacity-100'
             )}
             value={search}
@@ -305,7 +305,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
               type='button'
               variant='outline'
               size='icon'
-              className='h-8 px-1 text-xl rounded-full rounded-l-none border-none text-muted-foreground hover:text-muted-foreground'
+              className='h-full w-10 px-1 text-xl rounded-full rounded-l-none border-none text-muted-foreground hover:text-muted-foreground lg:w-8'
               onClick={handleClickClearSearchButton}
             >
               <IoClose />
@@ -317,7 +317,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
               variant='outline'
               size='icon'
               className={cn(
-                'h-8 px-1 text-xl rounded-full border-none text-muted-foreground hover:text-muted-foreground',
+                'h-full w-10 px-1 text-xl rounded-full border-none text-muted-foreground hover:text-muted-foreground lg:w-8',
                 isSearchExpanded ? 'rounded-l-none' : 'lg:rounded-l-none'
               )}
               onClick={handleClickSearchButton}

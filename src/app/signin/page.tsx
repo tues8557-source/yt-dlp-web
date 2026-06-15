@@ -2,10 +2,10 @@
 
 import { signIn } from '@/server/actions/auth';
 
-import { useState, useTransition } from 'react';
+import { Suspense, useState, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import type { FormEvent } from 'react';
-import type { PageContext } from '@/types/types';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,17 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Footer } from '@/components/modules/Footer';
 import { Loading } from '@/components/modules/Loading';
 
-export default function SignInPage(context: PageContext<{}>) {
-  const callback = Array.isArray(context.searchParams.callback)
-    ? context.searchParams.callback[0]
-    : context.searchParams.callback;
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<Loading className='h-screen' />}>
+      <SignInForm />
+    </Suspense>
+  );
+}
 
+function SignInForm() {
+  const searchParams = useSearchParams();
+  const callback = searchParams.get('callback');
   const [errorMessage, setErrorMessage] = useState('');
   const [isPending, startTransition] = useTransition();
 

@@ -138,6 +138,7 @@ export const VideoGridItem = ({
   const uploadDate = formatUploadDate(video.uploadDate);
   const fileDuration = formatDuration(video.file.duration);
   const sourceVariants = getSameSourceVariants(video, items);
+  const isAudioOnly = isAudioFile(video);
 
   const [openDeleteList, setOpenDeleteList] = useState(false);
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
@@ -659,7 +660,12 @@ encode speed ${video.download.ffmpeg.speed}`
               </Button>
             </div>
           )}
-          {!isMouseEntered && typeof video.file.height === 'number' && video.file.height > 0 && (
+          {!isMouseEntered && isAudioOnly && video?.type === 'video' && (
+            <div className='absolute left-1.5 top-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white'>
+              Audio
+            </div>
+          )}
+          {!isMouseEntered && !isAudioOnly && typeof video.file.height === 'number' && video.file.height > 0 && (
             <div className='absolute left-1.5 top-1.5 text-xs text-white bg-black/80 py-0.5 px-1.5 rounded-md'>
               {video.file.height}p
               {typeof video.file.rFrameRate === 'number' && video.file.rFrameRate > 0
@@ -981,8 +987,8 @@ function getSameSourceVariants(
   video: VideoInfo,
   items?: GetVideoList['items']
 ): VideoPlayerFileVariant[] {
-  const sourceKey = normalizeSourceUrl(video.url || '');
-  if (!sourceKey || !items || video.type === 'playlist') {
+  const sourceIdentity = getSourceIdentity(video);
+  if (!sourceIdentity || !items || video.type === 'playlist') {
     return [];
   }
 
@@ -991,7 +997,7 @@ function getSameSourceVariants(
       if (!item || item.type === 'playlist' || item.status !== 'completed') return false;
       if (!item.file?.path) return false;
 
-      return normalizeSourceUrl(item.url || '') === sourceKey;
+      return isSameSource(sourceIdentity, getSourceIdentity(item));
     })
     .map((item) => ({
       uuid: item.uuid,
@@ -1022,6 +1028,63 @@ function getSameSourceVariants(
   return variants;
 }
 
+function getSourceIdentity(video?: Pick<VideoInfo, 'id' | 'url'> | null) {
+  const id = normalizeSourceId(video?.id || '') || extractSourceIdFromUrl(video?.url || '');
+  if (id) {
+    return {
+      type: 'id',
+      value: id
+    };
+  }
+
+  const url = normalizeSourceUrl(video?.url || '');
+  if (!url) return null;
+
+  return {
+    type: 'url',
+    value: url
+  };
+}
+
+function isSameSource(
+  source: ReturnType<typeof getSourceIdentity>,
+  target: ReturnType<typeof getSourceIdentity>
+) {
+  if (!source || !target) return false;
+
+  return source.type === target.type && source.value === target.value;
+}
+
+function normalizeSourceId(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function extractSourceIdFromUrl(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return '';
+
+  try {
+    const url = new URL(trimmedValue);
+    const hostname = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
+
+    if (hostname === 'youtu.be') {
+      return normalizeSourceId(url.pathname.split('/').filter(Boolean)[0] || '');
+    }
+
+    if (hostname.endsWith('youtube.com')) {
+      const watchId = url.searchParams.get('v');
+      if (watchId) return normalizeSourceId(watchId);
+
+      const [pathType, pathId] = url.pathname.split('/').filter(Boolean);
+      if (['embed', 'live', 'shorts'].includes(pathType || '') && pathId) {
+        return normalizeSourceId(pathId);
+      }
+    }
+  } catch (e) {}
+
+  return '';
+}
+
 function normalizeSourceUrl(value: string) {
   const trimmedValue = value.trim();
   if (!trimmedValue) return '';
@@ -1042,4 +1105,27 @@ function getVariantSortValue(variant: VideoPlayerFileVariant) {
   const height = typeof variant.height === 'number' ? variant.height : 0;
   const size = typeof variant.size === 'number' ? variant.size / 1_000_000_000 : 0;
   return height + size;
+}
+
+function isAudioFile(video?: Partial<VideoInfo>) {
+  if (!video) return false;
+
+  const extension = getFileExtension(video.file?.name || '').toLowerCase();
+  if (['aac', 'aiff', 'alac', 'flac', 'm4a', 'mka', 'mp3', 'ogg', 'opus', 'wav', 'weba'].includes(extension)) {
+    return true;
+  }
+
+  if (video.selectQuality === 'audio' || video.format === 'ba') {
+    return true;
+  }
+
+  return typeof video.file?.height !== 'number' || video.file.height <= 0;
+}
+
+function getFileExtension(filename: string) {
+  const basename = filename.split(/[\\/]/).pop() || '';
+  const index = basename.lastIndexOf('.');
+  if (index < 0 || index === basename.length - 1) return '';
+
+  return basename.slice(index + 1);
 }

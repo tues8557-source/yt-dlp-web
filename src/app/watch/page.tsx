@@ -6,20 +6,23 @@ import type { VideoInfo } from '@/types/video';
 export const dynamic = 'force-dynamic';
 
 type WatchPageProps = {
-  searchParams: {
+  searchParams: Promise<{
     uuid?: string;
     itemUuid?: string;
     t?: string;
-  };
+  }>;
 };
 
 export default async function WatchPage({ searchParams }: WatchPageProps) {
-  const video = searchParams.uuid ? await CacheHelper.get<VideoInfo>(searchParams.uuid) : null;
-  const startTime = Number(searchParams.t);
+  const resolvedSearchParams = await searchParams;
+  const video = resolvedSearchParams.uuid
+    ? await CacheHelper.get<VideoInfo>(resolvedSearchParams.uuid)
+    : null;
+  const startTime = Number(resolvedSearchParams.t);
   const videoInfo = video
     ? getVideoPlayerInfo(
         video,
-        searchParams.itemUuid,
+        resolvedSearchParams.itemUuid,
         Number.isFinite(startTime) && startTime > 0 ? startTime : undefined
       )
     : null;

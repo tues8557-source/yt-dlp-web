@@ -688,6 +688,11 @@ export function VideoPlayer({
 
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
+    if (deltaY > 80 && Math.abs(deltaX) < 80) {
+      handleAnimatedClose();
+      return;
+    }
+
     if (deltaY < -70 && Math.abs(deltaX) < 70) {
       await enterFullscreenWithOrientation();
     }
@@ -958,7 +963,7 @@ type PlayerControlsProps = {
   duration: number;
   isMuted: boolean;
   isPlaying: boolean;
-  progressRef: RefObject<HTMLInputElement>;
+  progressRef: RefObject<HTMLInputElement | null>;
   repeatMode: VideoRepeatMode;
   volume: number;
   onClose: () => void;

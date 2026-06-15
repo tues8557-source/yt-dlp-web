@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { YtDlpHelper } from '@/server/helpers/YtDlpHelper';
 
-export async function GET(request: Request, context: { params: { url: string } }) {
+export async function GET(request: Request) {
   const urlObject = new URL(request.url);
   const searchParams = urlObject.searchParams;
   const url = searchParams.get('url');

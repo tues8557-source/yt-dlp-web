@@ -176,6 +176,8 @@ npm run lint
 
 The app expects `/downloads` and `/cache` paths at runtime. Docker is the recommended development target when testing real downloads.
 
+For local development without Docker, set `DOWNLOAD_PATH` and `CACHE_PATH` to writable folders before running the app.
+
 ## Stack
 
 - yt-dlp

@@ -104,7 +104,7 @@ function isAllowedScopedApiRequest(request: NextRequest, scope: { uuid: string; 
   return pathname === '/api/og' || pathname.startsWith('/api/v/');
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === '/watch' && request.nextUrl.searchParams.get('share') === '1') {
     const uuid = request.nextUrl.searchParams.get('uuid') || '';
     const itemUuid = request.nextUrl.searchParams.get('itemUuid') || '';

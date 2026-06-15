@@ -1,14 +1,10 @@
 import './globals.css';
 import type { PropsWithChildren } from 'react';
-import { Inter } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import { ToastContainerProvider } from '@/components/provider/ToastContainerProvider';
 import { RehydrateProvider } from '@/components/RehydrateProvider';
 import { ThemeProvider } from '@/components/provider/ThemeProvider';
-import { cn } from '@/lib/utils';
 import { VideoPlayerContainer } from '@/components/containers/VideoPlayerContainerDialog';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
@@ -20,7 +16,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
         <link rel='icon' href='/favicon_144x144.png' sizes='144x144' />
         <link rel='icon' href='/favicon.ico' sizes='14x14' />
       </head>
-      <body className={cn(inter.className, 'min-w-[var(--site-min-width)]')}>
+      <body className='min-w-[var(--site-min-width)]'>
         {/* <Header /> */}
         <VideoPlayerContainer />
         <ThemeProvider

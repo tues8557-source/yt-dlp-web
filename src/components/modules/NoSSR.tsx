@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import type { PropsWithChildren } from 'react';
+import { useEffect, useState } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 
 export interface NoSSRProps {
-  defaultComponent?: JSX.Element | React.ReactNode | string;
+  defaultComponent?: ReactNode;
 }
 
 export function NoSSR({ defaultComponent, children }: PropsWithChildren<NoSSRProps>) {
