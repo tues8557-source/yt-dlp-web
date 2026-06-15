@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ChangeEvent, MouseEvent, RefObject, TouchEvent } from 'react';
+import type { CSSProperties, ChangeEvent, MouseEvent, PointerEvent, RefObject, TouchEvent } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
 import {
@@ -21,6 +21,8 @@ import {
   PinOff,
   Play,
   Repeat,
+  RotateCcw,
+  RotateCw,
   Share2,
   Volume2,
   VolumeX,
@@ -90,6 +92,8 @@ type TouchPoint = {
 };
 type CloseAnimationDirection = 'right' | 'down';
 type SurfaceSwipeDirection = 'up' | 'down' | null;
+type PlaybackFeedback = 'play' | 'pause' | 'rewind' | 'forward' | 'speed' | '';
+type TapSide = 'left' | 'right';
 type FullscreenOrientationLock = 'portrait' | 'landscape';
 type LockableScreenOrientation = ScreenOrientation & {
   lock?: (orientation: FullscreenOrientationLock) => Promise<void>;
@@ -132,6 +136,12 @@ export function VideoPlayer({
   const surfaceSwipeDirectionRef = useRef<SurfaceSwipeDirection>(null);
   const surfaceSwipeMovedRef = useRef(false);
   const edgeTouchStartRef = useRef<TouchPoint | null>(null);
+  const clickTimeoutRef = useRef<number | null>(null);
+  const lastTapRef = useRef<{ time: number; side: TapSide } | null>(null);
+  const longPressTimeoutRef = useRef<number | null>(null);
+  const longPressOriginalRateRef = useRef(1);
+  const isLongPressActiveRef = useRef(false);
+  const suppressNextClickRef = useRef(false);
   const [isPlaying, setPlaying] = useState(false);
   const [isMuted, setMuted] = useState(false);
   const [currentTime, setLocalCurrentTime] = useState(0);
@@ -142,7 +152,7 @@ export function VideoPlayer({
   const [copiedShareTarget, setCopiedShareTarget] = useState<ShareTarget | ''>('');
   const [isCapturingThumbnail, setCapturingThumbnail] = useState(false);
   const [isRemovingThumbnail, setRemovingThumbnail] = useState(false);
-  const [playbackFeedback, setPlaybackFeedback] = useState<'play' | 'pause' | ''>('');
+  const [playbackFeedback, setPlaybackFeedback] = useState<PlaybackFeedback>('');
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareWithStartTime, setShareWithStartTime] = useState(false);
   const [surfaceSwipeOffset, setSurfaceSwipeOffset] = useState(0);
@@ -299,6 +309,21 @@ export function VideoPlayer({
     return () => window.clearTimeout(timeout);
   }, [controlsVisible, isPlaying, controlsActivity, videoInfo.uuid, videoInfo.playlistVideoUuid]);
 
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        window.clearTimeout(clickTimeoutRef.current);
+      }
+      if (longPressTimeoutRef.current) {
+        window.clearTimeout(longPressTimeoutRef.current);
+      }
+      const videoEl = videoRef.current;
+      if (videoEl && isLongPressActiveRef.current) {
+        videoEl.playbackRate = longPressOriginalRateRef.current || 1;
+      }
+    };
+  }, []);
+
   const handleClose = () => {
     const close = useVideoPlayerStore.getState().close;
     const videoEl = videoRef.current;
@@ -344,21 +369,103 @@ export function VideoPlayer({
     return '';
   };
 
+  const showPlaybackFeedback = (feedback: PlaybackFeedback) => {
+    if (!feedback) return;
+
+    setPlaybackFeedback(feedback);
+    window.setTimeout(() => setPlaybackFeedback(''), 650);
+  };
+
+  const clearPendingSingleTap = () => {
+    if (clickTimeoutRef.current) {
+      window.clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimeoutRef.current) {
+      window.clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  const restorePlaybackRate = () => {
+    const videoEl = videoRef.current;
+    clearLongPressTimer();
+    if (videoEl && isLongPressActiveRef.current) {
+      videoEl.playbackRate = longPressOriginalRateRef.current || 1;
+    }
+    isLongPressActiveRef.current = false;
+  };
+
+  const seekBy = (seconds: number) => {
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    const current = Number(videoEl.currentTime) || 0;
+    const maxTime = Number(videoEl.duration) || duration || current;
+    const nextTime = Math.min(Math.max(current + seconds, 0), maxTime);
+    videoEl.currentTime = nextTime;
+    setLocalCurrentTime(nextTime);
+    useVideoPlayerStore.getState().setCurrentTime(nextTime);
+    showPlaybackFeedback(seconds < 0 ? 'rewind' : 'forward');
+  };
+
   const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
     const videoEl = videoRef.current;
     if (!videoEl) return;
-    if (surfaceSwipeMovedRef.current) {
+    if (surfaceSwipeMovedRef.current || suppressNextClickRef.current) {
       surfaceSwipeMovedRef.current = false;
+      suppressNextClickRef.current = false;
       return;
     }
 
-    videoEl.volume = typeof volume === 'number' ? volume : 0.75;
-    const action = await togglePlayback();
-    if (action) {
-      setPlaybackFeedback(action);
-      window.setTimeout(() => setPlaybackFeedback(''), 650);
+    const side = getTapSide(event);
+    const now = Date.now();
+    const lastTap = lastTapRef.current;
+    if (lastTap && lastTap.side === side && now - lastTap.time < 280) {
+      clearPendingSingleTap();
+      lastTapRef.current = null;
+      seekBy(side === 'left' ? -10 : 10);
+      return;
     }
+
+    lastTapRef.current = { time: now, side };
+    clearPendingSingleTap();
+    clickTimeoutRef.current = window.setTimeout(async () => {
+      clickTimeoutRef.current = null;
+      videoEl.volume = typeof volume === 'number' ? volume : 0.75;
+      const action = await togglePlayback();
+      showPlaybackFeedback(action as PlaybackFeedback);
+    }, 220);
+  };
+
+  const handlePlayerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (isInteractivePlayerTarget(event.target)) return;
+
+    clearLongPressTimer();
+    longPressTimeoutRef.current = window.setTimeout(async () => {
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+
+      longPressOriginalRateRef.current = Number(videoEl.playbackRate) || 1;
+      videoEl.playbackRate = 2;
+      isLongPressActiveRef.current = true;
+      suppressNextClickRef.current = true;
+      showPlaybackFeedback('speed');
+      try {
+        if (videoEl.paused) {
+          await videoEl.play();
+          setPlaying(true);
+        }
+      } catch (e) {}
+    }, 420);
+  };
+
+  const handlePlayerPointerUp = () => {
+    restorePlaybackRate();
   };
 
   const handleClickExternalLink = () => {
@@ -725,6 +832,7 @@ export function VideoPlayer({
     }
 
     event.preventDefault();
+    clearLongPressTimer();
     setControlsVisible(false);
     setSurfaceSwipeOffset(clampSurfaceSwipeOffset(deltaY));
   };
@@ -816,6 +924,10 @@ export function VideoPlayer({
       onMouseEnter={handleShowControls}
       onMouseMove={handleShowControls}
       onMouseLeave={handleHideControls}
+      onPointerDown={handlePlayerPointerDown}
+      onPointerUp={handlePlayerPointerUp}
+      onPointerCancel={handlePlayerPointerUp}
+      onPointerLeave={handlePlayerPointerUp}
       onTouchStart={handleSurfaceTouchStart}
       onTouchMove={handleSurfaceTouchMove}
       onTouchEnd={handleSurfaceTouchEnd}
@@ -857,9 +969,6 @@ export function VideoPlayer({
             className='h-full w-full object-contain opacity-95'
             draggable={false}
           />
-          <div className='absolute inset-0 flex items-center justify-center bg-black/20'>
-            <Music2 className='h-24 w-24 text-white/40' />
-          </div>
           <div className='absolute left-3 top-3 inline-flex items-center gap-x-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm'>
             <Music2 className='h-4 w-4' />
             Audio
@@ -871,8 +980,20 @@ export function VideoPlayer({
           <div className='flex h-20 w-20 items-center justify-center rounded-full bg-black/55 text-white shadow-lg animate-in fade-in zoom-in-95 duration-150'>
             {playbackFeedback === 'play' ? (
               <Play className='ml-1 h-10 w-10 fill-current' />
-            ) : (
+            ) : playbackFeedback === 'pause' ? (
               <Pause className='h-10 w-10 fill-current' />
+            ) : playbackFeedback === 'rewind' ? (
+              <div className='flex flex-col items-center gap-0.5 text-xs font-semibold'>
+                <RotateCcw className='h-9 w-9' />
+                10
+              </div>
+            ) : playbackFeedback === 'forward' ? (
+              <div className='flex flex-col items-center gap-0.5 text-xs font-semibold'>
+                <RotateCw className='h-9 w-9' />
+                10
+              </div>
+            ) : (
+              <span className='text-2xl font-bold'>2x</span>
             )}
           </div>
         </div>
@@ -899,6 +1020,8 @@ export function VideoPlayer({
         onPlayPause={togglePlayback}
         onProgress={handleProgressChange}
         onRepeat={handleClickRepeatButton}
+        onSeekBackward={() => seekBy(-10)}
+        onSeekForward={() => seekBy(10)}
         onVolume={handleVolumeChange}
       />
     </div>
@@ -908,7 +1031,7 @@ export function VideoPlayer({
     return (
       <div className='group relative flex h-full min-w-[var(--site-min-width)] flex-col items-center overflow-hidden bg-black text-white'>
         <CompactPlayerBar
-        isTopSticky={isTopSticky}
+          isTopSticky={isTopSticky}
           isWideScreen={isWideScreen}
           originalUrl={videoInfo.url}
           title={videoInfo.title}
@@ -1044,6 +1167,8 @@ type PlayerControlsProps = {
   onPlayPause: () => void;
   onProgress: (event: ChangeEvent<HTMLInputElement>) => void;
   onRepeat: () => void;
+  onSeekBackward: () => void;
+  onSeekForward: () => void;
   onVolume: (event: ChangeEvent<HTMLInputElement>) => void;
 };
 
@@ -1062,6 +1187,8 @@ function PlayerControls({
   onPlayPause,
   onProgress,
   onRepeat,
+  onSeekBackward,
+  onSeekForward,
   onVolume
 }: PlayerControlsProps) {
   return (
@@ -1088,10 +1215,38 @@ function PlayerControls({
             variant='ghost'
             size='icon'
             className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+            onClick={onSeekBackward}
+            title='Back 10 seconds'
+          >
+            <div className='relative'>
+              <RotateCcw className='h-5 w-5' />
+              <span className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[35%] text-[8px] font-bold leading-none'>
+                10
+              </span>
+            </div>
+          </Button>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
             onClick={onPlayPause}
             title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <Pause className='h-5 w-5' /> : <Play className='h-5 w-5' />}
+          </Button>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+            onClick={onSeekForward}
+            title='Forward 10 seconds'
+          >
+            <div className='relative'>
+              <RotateCw className='h-5 w-5' />
+              <span className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[35%] text-[8px] font-bold leading-none'>
+                10
+              </span>
+            </div>
           </Button>
           <div className='w-[5.75rem] shrink-0 text-xs tabular-nums text-white/90'>
             {formatDuration(currentTime)} / {formatDuration(duration)}
@@ -1804,6 +1959,17 @@ function getSurfaceFullscreenReleaseDistance() {
   if (typeof window === 'undefined') return 160;
 
   return Math.min(window.innerHeight * 0.24, 190);
+}
+
+function getTapSide(event: MouseEvent<HTMLElement>): TapSide {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+
+  return x < rect.width / 2 ? 'left' : 'right';
+}
+
+function isInteractivePlayerTarget(target: EventTarget) {
+  return target instanceof Element && Boolean(target.closest('button, input, a, [role="button"]'));
 }
 
 function getShareLinks(
