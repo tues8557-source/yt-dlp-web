@@ -9,6 +9,7 @@ import type { UserPlaylists } from '@/types/userPlaylist';
 import type { VideoPlayerQueueItem } from '@/components/modules/VideoPlayer';
 
 const getUserPlaylistSectionId = (playlistId: string) => `user-playlist-${playlistId}`;
+const AUDIO_PLAYLIST_ID = 'system-audio-playlist';
 const GRID_CLASS_NAME =
   'grid gap-x-3 gap-y-6 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3';
 const VIRTUOSO_INCREASE_VIEWPORT_BY = { top: 700, bottom: 1400 };
@@ -34,6 +35,13 @@ type VideoListBodyProps = {
   userPlaylists?: UserPlaylists;
   viewMode: VideoListViewMode;
 } & VideoListProps;
+
+type PlaylistSection = {
+  id: string;
+  isSystem?: boolean;
+  name: string;
+  uuids: string[];
+};
 
 export const VideoListBody = ({
   items,
@@ -104,12 +112,34 @@ function UserPlaylistGridViewer({
     );
   }
 
-  const visiblePlaylistIds = userPlaylists.orders.filter((playlistId) => {
-    const playlist = userPlaylists.items[playlistId];
-    return playlist?.uuids.some((uuid) => visibleUuids.has(uuid) && items[uuid]);
-  });
+  const audioPlaylist: PlaylistSection = {
+    id: AUDIO_PLAYLIST_ID,
+    isSystem: true,
+    name: 'Audio',
+    uuids: orders.filter((uuid) => {
+      const item = items[uuid];
+      return Boolean(item && visibleUuids.has(uuid) && isAudioItem(item));
+    })
+  };
+  const playlistSections: PlaylistSection[] = [
+    audioPlaylist,
+    ...userPlaylists.orders
+      .map((playlistId) => {
+        const playlist = userPlaylists.items[playlistId];
+        if (!playlist) return null;
+        const uuids = playlist.uuids.filter((uuid) => visibleUuids.has(uuid) && items[uuid]);
+        if (!uuids.length) return null;
 
-  if (visiblePlaylistIds.length === 0) {
+        return {
+          id: playlistId,
+          name: playlist.name,
+          uuids
+        };
+      })
+      .filter((section): section is PlaylistSection => Boolean(section))
+  ];
+
+  if (playlistSections.length === 0) {
     return (
       <div className='flex min-h-[40vh] w-full items-center justify-center py-10'>
         <span className='select-none text-3xl text-muted-foreground opacity-50'>No playlists</span>
@@ -123,50 +153,62 @@ function UserPlaylistGridViewer({
         className='flex gap-2 overflow-x-auto pb-1 scrollbar-hidden'
         aria-label='Playlist shortcuts'
       >
-        {visiblePlaylistIds.map((playlistId) => {
-          const playlist = userPlaylists.items[playlistId];
+        {playlistSections.map((section) => {
           return (
             <button
-              key={playlistId}
+              key={section.id}
               type='button'
-              className='shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/20'
+              className={
+                section.isSystem
+                  ? 'shrink-0 rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-500/20 dark:text-sky-300'
+                  : 'shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/20'
+              }
               onClick={() => {
                 document
-                  .getElementById(getUserPlaylistSectionId(playlistId))
+                  .getElementById(getUserPlaylistSectionId(section.id))
                   ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             >
-              {playlist.name}
+              {section.name}
             </button>
           );
         })}
       </nav>
-      {visiblePlaylistIds.map((playlistId) => {
-        const playlist = userPlaylists.items[playlistId];
-        const playlistUuids = playlist.uuids.filter((uuid) => visibleUuids.has(uuid) && items[uuid]);
-        const playlistQueue = playlistUuids
+      {playlistSections.map((section) => {
+        const playlistQueue = section.uuids
           .map((uuid) => items[uuid])
           .filter((item) => item?.status === 'completed' && item.type !== 'playlist' && item.file?.path)
           .map(toVideoPlayerQueueItem);
 
         return (
           <section
-            key={playlistId}
-            id={getUserPlaylistSectionId(playlistId)}
+            key={section.id}
+            id={getUserPlaylistSectionId(section.id)}
             className='scroll-mt-4 space-y-4'
           >
-            <div className='flex items-baseline gap-x-2'>
-              <h2 className='text-lg font-bold'>{playlist.name}</h2>
-              <span className='text-sm text-muted-foreground'>({playlistUuids.length})</span>
+            <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1'>
+              <h2 className='text-lg font-bold'>{section.name}</h2>
+              {section.isSystem && (
+                <span className='rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300'>
+                  Default
+                </span>
+              )}
+              <span className='text-sm text-muted-foreground'>({section.uuids.length})</span>
             </div>
-            <VideoGrid
-              items={items}
-              orders={playlistUuids}
-              keyPrefix={playlistId}
-              highlightPlaylistButtons={highlightPlaylistButtons}
-              queueTitle={playlist.name}
-              queue={playlistQueue}
-            />
+            {section.uuids.length > 0 ? (
+              <VideoGrid
+                items={items}
+                orders={section.uuids}
+                keyPrefix={section.id}
+                highlightPlaylistButtons={highlightPlaylistButtons}
+                queueTitle={section.name}
+                queue={playlistQueue}
+              />
+            ) : (
+              <div className='rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground'>
+                No audio files
+              </div>
+            )}
           </section>
         );
       })}
@@ -276,4 +318,25 @@ function toVideoPlayerQueueItem(video: NonNullable<VideoListProps['items']>[stri
     colorPrimaries: video.file?.colorPrimaries,
     containerName: video.file?.containerName
   };
+}
+
+function isAudioItem(item: NonNullable<VideoListProps['items']>[string]) {
+  const extension = getFileExtension(item.file?.name || '').toLowerCase();
+  if (['aac', 'aiff', 'alac', 'flac', 'm4a', 'mka', 'mp3', 'ogg', 'opus', 'wav', 'weba'].includes(extension)) {
+    return true;
+  }
+
+  if (item.selectQuality === 'audio' || item.format === 'ba') {
+    return true;
+  }
+
+  return typeof item.file?.height !== 'number' || item.file.height <= 0;
+}
+
+function getFileExtension(filename: string) {
+  const basename = filename.split(/[\\/]/).pop() || '';
+  const index = basename.lastIndexOf('.');
+  if (index < 0 || index === basename.length - 1) return '';
+
+  return basename.slice(index + 1);
 }

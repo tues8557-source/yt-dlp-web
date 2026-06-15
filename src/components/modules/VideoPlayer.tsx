@@ -937,7 +937,7 @@ export function VideoPlayer({
   return (
     <div
       className={cn(
-        'h-full min-w-[var(--site-min-width)] overflow-hidden bg-background text-foreground shadow-[-18px_0_40px_rgba(0,0,0,0.28)] md:overflow-y-auto',
+        'h-full min-w-[var(--site-min-width)] overflow-y-auto bg-background text-foreground shadow-[-18px_0_40px_rgba(0,0,0,0.28)]',
         isEdgeSwipeClosing ? 'transition-transform duration-200 ease-out' : edgeSwipeOffset > 0 && 'transition-none'
       )}
       style={{
@@ -955,10 +955,10 @@ export function VideoPlayer({
         setEdgeSwipeOffset(0);
       }}
     >
-      <div className='mx-auto flex h-full w-full max-w-[1280px] flex-col gap-4 px-3 py-3 md:grid md:h-auto md:px-5'>
-        <main className='flex min-h-0 min-w-0 flex-1 flex-col md:block'>
+      <div className='mx-auto flex min-h-full w-full max-w-[1280px] flex-col gap-4 px-3 py-3 md:grid md:h-auto md:px-5'>
+        <main className='flex min-w-0 flex-col md:block'>
           {playerSurface}
-          <section className='flex min-h-0 flex-1 flex-col overflow-hidden pt-3 md:block md:overflow-visible'>
+          <section className='flex min-h-0 flex-1 flex-col overflow-visible pt-3 md:block'>
             <div className='flex items-start gap-x-3'>
               <div className='min-w-0 flex-1'>
                 <h2
@@ -1777,7 +1777,8 @@ function getSurfaceSwipeStyle(offset: number): CSSProperties | undefined {
 
     return {
       transform: `translate3d(0, ${offset}px, 0) scale(${scale})`,
-      transformOrigin: 'center top'
+      transformOrigin: 'center top',
+      zIndex: 30
     };
   }
 
@@ -1788,7 +1789,8 @@ function getSurfaceSwipeStyle(offset: number): CSSProperties | undefined {
 
   return {
     transform: `translate3d(0, ${translateY}px, 0) scale(${scale})`,
-    transformOrigin: 'center top'
+    transformOrigin: 'center top',
+    zIndex: 30
   };
 }
 

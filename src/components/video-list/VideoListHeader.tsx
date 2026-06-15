@@ -283,7 +283,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
           className={cn(
             'ml-auto flex shrink-0 items-center justify-end rounded-full bg-background shadow-sm transition-[width,height] duration-200 ease-out lg:static lg:h-8 lg:min-w-0 lg:flex-1 lg:px-0',
             isSearchExpanded
-              ? 'absolute -inset-x-2 -inset-y-1 z-30 h-10 border px-1 lg:inset-x-auto lg:inset-y-0 lg:border-0'
+              ? 'absolute -inset-x-3 -inset-y-2 z-50 h-12 border px-1.5 lg:inset-x-auto lg:inset-y-0 lg:h-8 lg:border-0 lg:px-0'
               : 'h-8 w-8 lg:w-auto'
           )}
         >
