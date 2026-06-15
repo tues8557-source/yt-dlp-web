@@ -310,6 +310,44 @@ export function VideoPlayer({
   }, [controlsVisible, isPlaying, controlsActivity, videoInfo.uuid, videoInfo.playlistVideoUuid]);
 
   useEffect(() => {
+    if (videoInfo.type !== 'video' || typeof window === 'undefined') return;
+
+    const landscapeQuery = window.matchMedia('(orientation: landscape)');
+    let fullscreenAttemptedForLandscape = false;
+    const handleOrientationChange = () => {
+      const isLandscape = landscapeQuery.matches;
+      if (!isLandscape) {
+        fullscreenAttemptedForLandscape = false;
+        return;
+      }
+
+      if (
+        fullscreenAttemptedForLandscape ||
+        document.fullscreenElement ||
+        !isLikelyMobileViewport() ||
+        !playerSurfaceRef.current
+      ) {
+        return;
+      }
+
+      fullscreenAttemptedForLandscape = true;
+      void enterFullscreenWithOrientation();
+    };
+
+    handleOrientationChange();
+    landscapeQuery.addEventListener('change', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleOrientationChange);
+    return () => {
+      landscapeQuery.removeEventListener('change', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener('resize', handleOrientationChange);
+    };
+    // Fullscreen helpers read refs and current media metadata at call time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoInfo.type, videoInfo.uuid, videoInfo.playlistVideoUuid]);
+
+  useEffect(() => {
     return () => {
       if (clickTimeoutRef.current) {
         window.clearTimeout(clickTimeoutRef.current);
@@ -412,8 +450,7 @@ export function VideoPlayer({
     showPlaybackFeedback(seconds < 0 ? 'rewind' : 'forward');
   };
 
-  const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
-    event.stopPropagation();
+  const handlePlayerTap = async (side: TapSide) => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
     if (surfaceSwipeMovedRef.current || suppressNextClickRef.current) {
@@ -422,7 +459,6 @@ export function VideoPlayer({
       return;
     }
 
-    const side = getTapSide(event);
     const now = Date.now();
     const lastTap = lastTapRef.current;
     if (lastTap && lastTap.side === side && now - lastTap.time < 280) {
@@ -440,6 +476,16 @@ export function VideoPlayer({
       const action = await togglePlayback();
       showPlaybackFeedback(action as PlaybackFeedback);
     }, 220);
+  };
+
+  const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    await handlePlayerTap(getTapSide(event));
+  };
+
+  const handleTapZoneClick = (side: TapSide) => async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    await handlePlayerTap(side);
   };
 
   const handlePlayerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -915,7 +961,7 @@ export function VideoPlayer({
     <div
       ref={playerSurfaceRef}
       className={cn(
-        'relative aspect-video w-full touch-none overflow-hidden rounded-lg bg-black shadow-sm will-change-transform',
+        'relative aspect-video w-full touch-none select-none overflow-hidden rounded-lg bg-black shadow-sm will-change-transform',
         isSurfaceSwipeReleasing
           ? 'transition-transform duration-200 ease-out'
           : surfaceSwipeOffset && 'transition-none'
@@ -955,6 +1001,24 @@ export function VideoPlayer({
           onClick={handleClickVideo}
         />
       )}
+      {!isAudioOnly && (
+        <div className='pointer-events-none absolute inset-0 z-10 flex'>
+          <button
+            type='button'
+            aria-label='Back 10 seconds'
+            data-player-tap-zone='true'
+            className='pointer-events-auto h-full flex-1 cursor-default bg-transparent outline-none'
+            onClick={handleTapZoneClick('left')}
+          />
+          <button
+            type='button'
+            aria-label='Forward 10 seconds'
+            data-player-tap-zone='true'
+            className='pointer-events-auto h-full flex-1 cursor-default bg-transparent outline-none'
+            onClick={handleTapZoneClick('right')}
+          />
+        </div>
+      )}
       {isAudioOnly && (
         <div
           className='absolute inset-0 flex cursor-pointer items-center justify-center bg-black'
@@ -976,8 +1040,8 @@ export function VideoPlayer({
         </div>
       )}
       {playbackFeedback && (
-        <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-          <div className='flex h-20 w-20 items-center justify-center rounded-full bg-black/55 text-white shadow-lg animate-in fade-in zoom-in-95 duration-150'>
+        <div className='pointer-events-none absolute inset-0 z-20 flex select-none items-center justify-center'>
+          <div className='flex h-20 w-20 select-none items-center justify-center rounded-full bg-black/55 text-white shadow-lg animate-in fade-in zoom-in-95 duration-150'>
             {playbackFeedback === 'play' ? (
               <Play className='ml-1 h-10 w-10 fill-current' />
             ) : playbackFeedback === 'pause' ? (
@@ -993,7 +1057,7 @@ export function VideoPlayer({
                 10
               </div>
             ) : (
-              <span className='text-2xl font-bold'>2x</span>
+              <span className='select-none text-2xl font-bold'>2x</span>
             )}
           </div>
         </div>
@@ -1194,7 +1258,7 @@ function PlayerControls({
   return (
     <div
       className={cn(
-        'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-3 pb-2 pt-10 text-white transition-opacity duration-150',
+        'absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-3 pb-2 pt-10 text-white transition-opacity duration-150',
         controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
       )}
     >
@@ -1214,7 +1278,7 @@ function PlayerControls({
           <Button
             variant='ghost'
             size='icon'
-            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+            className='hidden h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white sm:inline-flex'
             onClick={onSeekBackward}
             title='Back 10 seconds'
           >
@@ -1237,7 +1301,7 @@ function PlayerControls({
           <Button
             variant='ghost'
             size='icon'
-            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+            className='hidden h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white sm:inline-flex'
             onClick={onSeekForward}
             title='Forward 10 seconds'
           >
@@ -1969,7 +2033,21 @@ function getTapSide(event: MouseEvent<HTMLElement>): TapSide {
 }
 
 function isInteractivePlayerTarget(target: EventTarget) {
-  return target instanceof Element && Boolean(target.closest('button, input, a, [role="button"]'));
+  if (!(target instanceof Element)) return false;
+  if (target.closest('[data-player-tap-zone="true"]')) return false;
+
+  return Boolean(target.closest('button, input, a, [role="button"]'));
+}
+
+function isLikelyMobileViewport() {
+  if (typeof window === 'undefined') return false;
+
+  const canHover = window.matchMedia('(hover: hover)').matches;
+  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  const shortSide = Math.min(window.innerWidth, window.innerHeight);
+  const longSide = Math.max(window.innerWidth, window.innerHeight);
+
+  return hasCoarsePointer && !canHover && shortSide <= 540 && longSide <= 1000;
 }
 
 function getShareLinks(
