@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, MouseEvent, PointerEvent, TouchEvent } from 'react';
+import type { ChangeEvent, MouseEvent, PointerEvent, Touch, TouchEvent } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
 import { ListVideo, Music2, Pause, Play } from 'lucide-react';
@@ -61,9 +61,30 @@ export type {
   VideoPlayerVideoInfo
 } from '@/components/modules/video-player/types';
 
-const SINGLE_TAP_DELAY_MS = 650;
-const CONTROLS_AUTO_HIDE_MS = 5000;
+const DOUBLE_TAP_DELAY_MS = 450;
+const CONTROLS_AUTO_HIDE_MS = 3000;
 const TOUCH_CLICK_SUPPRESS_MS = 1200;
+const LONG_PRESS_DELAY_MS = 420;
+const MIN_PINCH_ZOOM = 1;
+const MAX_PINCH_ZOOM = 3;
+const KEYBOARD_SEEK_SECONDS = 5;
+const KEYBOARD_SKIP_SECONDS = 10;
+const KEYBOARD_VOLUME_STEP = 0.05;
+const KEYBOARD_RATE_STEP = 0.25;
+
+function clampValue(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getTouchDistance(first: Touch, second: Touch) {
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
 
 export function VideoPlayer({
   isNotSupportedCodec,
@@ -81,7 +102,7 @@ export function VideoPlayer({
   const surfaceSwipeMovedRef = useRef(false);
   const edgeTouchStartRef = useRef<TouchPoint | null>(null);
   const clickTimeoutRef = useRef<number | null>(null);
-  const lastTapRef = useRef<{ time: number; side: TapSide; controlsVisible: boolean } | null>(null);
+  const lastTapRef = useRef<{ time: number } | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
   const controlsVisibleRef = useRef(false);
   const suppressControlsUntilRef = useRef(0);
@@ -90,6 +111,8 @@ export function VideoPlayer({
   const longPressOriginalRateRef = useRef(1);
   const isLongPressActiveRef = useRef(false);
   const suppressNextClickRef = useRef(false);
+  const pinchStartDistanceRef = useRef(0);
+  const pinchStartZoomRef = useRef(1);
   const shouldResumeAfterFullscreenRef = useRef(false);
   const fullscreenExitResumeUntilRef = useRef(0);
   const originalDocumentTitleRef = useRef<string | null>(null);
@@ -108,6 +131,8 @@ export function VideoPlayer({
   const [shareWithStartTime, setShareWithStartTime] = useState(false);
   const [surfaceSwipeOffset, setSurfaceSwipeOffset] = useState(0);
   const [isSurfaceSwipeReleasing, setSurfaceSwipeReleasing] = useState(false);
+  const [pinchZoom, setPinchZoom] = useState(1);
+  const [pinchOrigin, setPinchOrigin] = useState({ x: 50, y: 50 });
   const [edgeSwipeOffset, setEdgeSwipeOffset] = useState(0);
   const [isEdgeSwipeClosing, setEdgeSwipeClosing] = useState(false);
   const [closeAnimationDirection, setCloseAnimationDirection] =
@@ -168,6 +193,10 @@ export function VideoPlayer({
     setControlsActivity(0);
     clearPendingSingleTap();
     lastTapRef.current = null;
+    pinchStartDistanceRef.current = 0;
+    pinchStartZoomRef.current = MIN_PINCH_ZOOM;
+    setPinchZoom(MIN_PINCH_ZOOM);
+    setPinchOrigin({ x: 50, y: 50 });
     suppressHoverControlsUntilRef.current = Date.now() + 500;
     suppressClickUntilRef.current = Date.now() + 500;
   }, [videoInfo.uuid, videoInfo.playlistVideoUuid]);
@@ -270,15 +299,88 @@ export function VideoPlayer({
       }
     };
     const handleKeyPress = async (event: globalThis.KeyboardEvent) => {
+      if (isEditableKeyboardTarget(event.target)) return;
+
+      const seekToPercent = (percent: number) => {
+        const videoEl = videoRef.current;
+        const maxTime = Number(videoEl?.duration) || duration || 0;
+        if (!videoEl || !maxTime) return;
+
+        const nextTime = maxTime * percent;
+        videoEl.currentTime = nextTime;
+        setLocalCurrentTime(nextTime);
+        useVideoPlayerStore.getState().setCurrentTime(nextTime);
+      };
+
       switch (event.code) {
         case 'Escape':
           handleClose();
           break;
         case 'Space':
-          if (document.activeElement === videoEl) break;
           event.preventDefault();
-          await togglePlayback();
+          showPlaybackFeedback(await togglePlayback());
           break;
+        case 'KeyK':
+          event.preventDefault();
+          showPlaybackFeedback(await togglePlayback());
+          break;
+        case 'KeyJ':
+          event.preventDefault();
+          seekBy(-KEYBOARD_SKIP_SECONDS);
+          break;
+        case 'KeyL':
+          event.preventDefault();
+          seekBy(KEYBOARD_SKIP_SECONDS);
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          seekBy(-KEYBOARD_SEEK_SECONDS);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          seekBy(KEYBOARD_SEEK_SECONDS);
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          adjustVolume(KEYBOARD_VOLUME_STEP);
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          adjustVolume(-KEYBOARD_VOLUME_STEP);
+          break;
+        case 'KeyF':
+          event.preventDefault();
+          await enterFullscreenWithOrientation();
+          break;
+        case 'KeyM':
+          event.preventDefault();
+          handleClickMute();
+          break;
+        case 'Home':
+          event.preventDefault();
+          seekToPercent(0);
+          break;
+        case 'End':
+          event.preventDefault();
+          seekToPercent(1);
+          break;
+      }
+
+      if (event.key === '<') {
+        event.preventDefault();
+        adjustPlaybackRate(-KEYBOARD_RATE_STEP);
+        return;
+      }
+
+      if (event.key === '>') {
+        event.preventDefault();
+        adjustPlaybackRate(KEYBOARD_RATE_STEP);
+        return;
+      }
+
+      if (/^[0-9]$/.test(event.key)) {
+        event.preventDefault();
+        seekToPercent(Number(event.key) / 10);
       }
     };
 
@@ -313,7 +415,7 @@ export function VideoPlayer({
   }, [effectiveRepeatMode, videoInfo]);
 
   useEffect(() => {
-    if (!controlsVisible) return;
+    if (!controlsVisible || !isPlaying) return;
 
     const timeout = window.setTimeout(() => {
       setControlsVisible(false);
@@ -594,10 +696,29 @@ export function VideoPlayer({
     showPlaybackFeedback(seconds < 0 ? 'rewind' : 'forward');
   };
 
+  const adjustVolume = (delta: number) => {
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    const nextVolume = clampValue((Number(videoEl.volume) || 0) + delta, 0, 1);
+    videoEl.volume = nextVolume;
+    videoEl.muted = nextVolume === 0;
+    setMuted(videoEl.muted);
+    useVideoPlayerStore.getState().setVolume(nextVolume);
+    handleShowControls();
+  };
+
+  const adjustPlaybackRate = (delta: number) => {
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    videoEl.playbackRate = clampValue((Number(videoEl.playbackRate) || 1) + delta, 0.25, 2);
+  };
+
   const handlePlayerTap = async (side: TapSide) => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
-    if (surfaceSwipeMovedRef.current || suppressNextClickRef.current) {
+    if (pinchStartDistanceRef.current || surfaceSwipeMovedRef.current || suppressNextClickRef.current) {
       surfaceSwipeMovedRef.current = false;
       suppressNextClickRef.current = false;
       return;
@@ -605,28 +726,26 @@ export function VideoPlayer({
 
     const now = Date.now();
     const lastTap = lastTapRef.current;
-    if (lastTap && now - lastTap.time < SINGLE_TAP_DELAY_MS) {
+    if (lastTap && now - lastTap.time <= DOUBLE_TAP_DELAY_MS) {
       clearPendingSingleTap();
       lastTapRef.current = null;
       suppressControlsUntilRef.current = now + 500;
       seekBy(side === 'left' ? -10 : 10);
-      if (!lastTap.controlsVisible) {
-        handleHideControls();
-      }
+      handleHideControls();
       return;
     }
 
-    lastTapRef.current = { time: now, side, controlsVisible: controlsVisibleRef.current };
+    lastTapRef.current = { time: now };
     clearPendingSingleTap();
-    clickTimeoutRef.current = window.setTimeout(async () => {
+    if (controlsVisibleRef.current) {
+      handleHideControls();
+    } else {
+      handleShowControls();
+    }
+    clickTimeoutRef.current = window.setTimeout(() => {
       clickTimeoutRef.current = null;
       lastTapRef.current = null;
-      if (controlsVisibleRef.current) {
-        handleHideControls();
-      } else {
-        handleShowControls();
-      }
-    }, SINGLE_TAP_DELAY_MS);
+    }, DOUBLE_TAP_DELAY_MS);
   };
 
   const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
@@ -670,24 +789,20 @@ export function VideoPlayer({
 
   const handlePlayerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (isInteractivePlayerTarget(event.target)) return;
+    const videoEl = videoRef.current;
+    if (!videoEl || videoEl.paused) return;
 
     clearLongPressTimer();
-    longPressTimeoutRef.current = window.setTimeout(async () => {
+    longPressTimeoutRef.current = window.setTimeout(() => {
       const videoEl = videoRef.current;
-      if (!videoEl) return;
+      if (!videoEl || videoEl.paused) return;
 
       longPressOriginalRateRef.current = Number(videoEl.playbackRate) || 1;
       videoEl.playbackRate = 2;
       isLongPressActiveRef.current = true;
       suppressNextClickRef.current = true;
       showPlaybackFeedback('speed');
-      try {
-        if (videoEl.paused) {
-          await videoEl.play();
-          setPlaying(true);
-        }
-      } catch (e) {}
-    }, 420);
+    }, LONG_PRESS_DELAY_MS);
   };
 
   const handlePlayerPointerUp = () => {
@@ -1065,7 +1180,36 @@ export function VideoPlayer({
     window.setTimeout(() => setSurfaceSwipeReleasing(false), 180);
   };
 
+  const resetPinchGesture = () => {
+    pinchStartDistanceRef.current = 0;
+    pinchStartZoomRef.current = pinchZoom;
+  };
+
   const handleSurfaceTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length >= 2) {
+      const firstTouch = event.touches[0];
+      const secondTouch = event.touches[1];
+      if (!firstTouch || !secondTouch) return;
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const midpointX = (firstTouch.clientX + secondTouch.clientX) / 2 - rect.left;
+      const midpointY = (firstTouch.clientY + secondTouch.clientY) / 2 - rect.top;
+
+      clearLongPressTimer();
+      clearPendingSingleTap();
+      lastTapRef.current = null;
+      surfaceTouchStartRef.current = null;
+      surfaceSwipeDirectionRef.current = null;
+      surfaceSwipeMovedRef.current = true;
+      pinchStartDistanceRef.current = getTouchDistance(firstTouch, secondTouch);
+      pinchStartZoomRef.current = pinchZoom;
+      setPinchOrigin({
+        x: clampValue((midpointX / rect.width) * 100, 0, 100),
+        y: clampValue((midpointY / rect.height) * 100, 0, 100)
+      });
+      return;
+    }
+
     const touch = event.touches[0];
     if (!touch) return;
 
@@ -1080,9 +1224,27 @@ export function VideoPlayer({
   };
 
   const handleSurfaceTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length >= 2 && pinchStartDistanceRef.current) {
+      const firstTouch = event.touches[0];
+      const secondTouch = event.touches[1];
+      if (!firstTouch || !secondTouch) return;
+
+      event.preventDefault();
+      clearLongPressTimer();
+      surfaceSwipeMovedRef.current = true;
+      const nextZoom = pinchStartZoomRef.current * (getTouchDistance(firstTouch, secondTouch) / pinchStartDistanceRef.current);
+      setPinchZoom(clampValue(nextZoom, MIN_PINCH_ZOOM, MAX_PINCH_ZOOM));
+      return;
+    }
+
     const start = surfaceTouchStartRef.current;
     const touch = event.touches[0];
     if (!start || !touch || isEdgeSwipeClosing) return;
+    if (pinchZoom > MIN_PINCH_ZOOM) {
+      event.preventDefault();
+      clearLongPressTimer();
+      return;
+    }
 
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
@@ -1105,6 +1267,12 @@ export function VideoPlayer({
   };
 
   const handleSurfaceTouchEnd = async (event: TouchEvent<HTMLDivElement>) => {
+    if (pinchStartDistanceRef.current) {
+      resetPinchGesture();
+      surfaceSwipeMovedRef.current = true;
+      return;
+    }
+
     const start = surfaceTouchStartRef.current;
     surfaceTouchStartRef.current = null;
     surfaceSwipeDirectionRef.current = null;
@@ -1130,6 +1298,11 @@ export function VideoPlayer({
       return;
     }
 
+    resetSurfaceSwipe();
+  };
+
+  const handleSurfaceTouchCancel = () => {
+    resetPinchGesture();
     resetSurfaceSwipe();
   };
 
@@ -1199,7 +1372,7 @@ export function VideoPlayer({
       onTouchStart={handleSurfaceTouchStart}
       onTouchMove={handleSurfaceTouchMove}
       onTouchEnd={handleSurfaceTouchEnd}
-      onTouchCancel={resetSurfaceSwipe}
+      onTouchCancel={handleSurfaceTouchCancel}
     >
       {isAudioOnly ? (
         <audio
@@ -1218,6 +1391,11 @@ export function VideoPlayer({
             'h-full w-full object-contain outline-none',
             isTheaterMode && 'max-h-full max-w-full'
           )}
+          style={{
+            transform: `scale(${pinchZoom})`,
+            transformOrigin: `${pinchOrigin.x}% ${pinchOrigin.y}%`,
+            transition: pinchZoom === MIN_PINCH_ZOOM ? 'transform 160ms ease-out' : 'none'
+          }}
           src={playbackUrl}
           playsInline
           onPointerUp={handleVideoPointerUp}
@@ -1257,6 +1435,11 @@ export function VideoPlayer({
               event.currentTarget.style.display = 'none';
             }}
             className='h-full w-full object-contain opacity-95'
+            style={{
+              transform: `scale(${pinchZoom})`,
+              transformOrigin: `${pinchOrigin.x}% ${pinchOrigin.y}%`,
+              transition: pinchZoom === MIN_PINCH_ZOOM ? 'transform 160ms ease-out' : 'none'
+            }}
             draggable={false}
           />
           <div className='absolute left-3 top-3 inline-flex items-center gap-x-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm'>
