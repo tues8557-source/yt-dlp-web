@@ -633,10 +633,13 @@ export function VideoPlayer({
 
     setCloseAnimationDirection(direction);
     setEdgeSwipeClosing(true);
-    setEdgeSwipeOffset(getCloseAnimationDistance(direction));
+    if (direction === 'right') {
+      setEdgeSwipeOffset(getCloseAnimationDistance(direction));
+    }
+    handleHideControls();
     window.setTimeout(() => {
       handleClose();
-    }, 180);
+    }, direction === 'down' ? 220 : 180);
   };
 
   const togglePlayback = async () => {
@@ -794,15 +797,20 @@ export function VideoPlayer({
     await handlePlayerPointerTap(side);
   };
 
-  const handleControlsBackgroundTap = async (event: MouseEvent<HTMLDivElement>) => {
+  const handleControlsBackgroundTap = (_event: MouseEvent<HTMLDivElement>) => {
     if (Date.now() < suppressClickUntilRef.current) return;
 
-    await handlePlayerTap(getTapSide(event));
+    clearPendingSingleTap();
+    lastTapRef.current = null;
+    handleHideControls();
   };
 
-  const handleControlsBackgroundPointerTap = async (event: PointerEvent<HTMLDivElement>) => {
+  const handleControlsBackgroundPointerTap = (_event: PointerEvent<HTMLDivElement>) => {
+    suppressClickUntilRef.current = Date.now() + TOUCH_CLICK_SUPPRESS_MS;
+    clearPendingSingleTap();
+    lastTapRef.current = null;
     restorePlaybackRate();
-    await handlePlayerPointerTap(getTapSide(event));
+    handleHideControls();
   };
 
   const handlePlayerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
