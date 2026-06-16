@@ -79,7 +79,11 @@ export function VideoPlayer({
   const clickTimeoutRef = useRef<number | null>(null);
   const lastTapRef = useRef<{ time: number; side: TapSide } | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
+  const controlsVisibleRef = useRef(false);
+  const volumeRef = useRef(volume);
   const suppressControlsUntilRef = useRef(0);
+  const suppressHoverControlsUntilRef = useRef(0);
+  const suppressClickUntilRef = useRef(0);
   const longPressOriginalRateRef = useRef(1);
   const isLongPressActiveRef = useRef(false);
   const suppressNextClickRef = useRef(false);
@@ -90,7 +94,7 @@ export function VideoPlayer({
   const [isMuted, setMuted] = useState(false);
   const [currentTime, setLocalCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [controlsVisible, setControlsVisible] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(false);
   const [controlsActivity, setControlsActivity] = useState(0);
   const [isMounted, setMounted] = useState(false);
   const [copiedShareTarget, setCopiedShareTarget] = useState<ShareTarget | ''>('');
@@ -152,6 +156,24 @@ export function VideoPlayer({
   }, []);
 
   useEffect(() => {
+    controlsVisibleRef.current = controlsVisible;
+  }, [controlsVisible]);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    setControlsVisible(false);
+    controlsVisibleRef.current = false;
+    setControlsActivity(0);
+    clearPendingSingleTap();
+    lastTapRef.current = null;
+    suppressHoverControlsUntilRef.current = Date.now() + 500;
+    suppressClickUntilRef.current = Date.now() + 500;
+  }, [videoInfo.uuid, videoInfo.playlistVideoUuid]);
+
+  useEffect(() => {
     let objectUrl = '';
     let isCanceled = false;
     const key = videoInfo.offlineKey || getOfflineMediaKey(videoInfo.uuid, videoInfo.playlistVideoUuid);
@@ -207,6 +229,8 @@ export function VideoPlayer({
         setNotSupportedCodec(false);
       } catch (e) {
         setPlaying(false);
+        controlsVisibleRef.current = true;
+        setControlsVisible(true);
         setNotSupportedCodec(!isAutoplayBlockedError(e));
       }
     })();
@@ -594,12 +618,13 @@ export function VideoPlayer({
     clearPendingSingleTap();
     clickTimeoutRef.current = window.setTimeout(async () => {
       clickTimeoutRef.current = null;
-      if (!controlsVisible) {
+      lastTapRef.current = null;
+      if (!controlsVisibleRef.current) {
         handleShowControls();
         return;
       }
 
-      videoEl.volume = typeof volume === 'number' ? volume : 0.75;
+      videoEl.volume = typeof volumeRef.current === 'number' ? volumeRef.current : 0.75;
       await togglePlayback();
     }, 320);
   };
@@ -607,13 +632,40 @@ export function VideoPlayer({
   const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (Date.now() < suppressClickUntilRef.current) return;
+
     await handlePlayerTap(getTapSide(event));
   };
 
   const handleTapZoneClick = (side: TapSide) => async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (Date.now() < suppressClickUntilRef.current) return;
+
     await handlePlayerTap(side);
+  };
+
+  const handlePlayerPointerTap = async (side: TapSide) => {
+    suppressClickUntilRef.current = Date.now() + 450;
+    await handlePlayerTap(side);
+  };
+
+  const handleVideoPointerUp = async (event: PointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'mouse') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    restorePlaybackRate();
+    await handlePlayerPointerTap(getTapSide(event));
+  };
+
+  const handleTapZonePointerUp = (side: TapSide) => async (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    restorePlaybackRate();
+    await handlePlayerPointerTap(side);
   };
 
   const handlePlayerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -989,11 +1041,19 @@ export function VideoPlayer({
   const handleShowControls = () => {
     if (Date.now() < suppressControlsUntilRef.current) return;
 
+    controlsVisibleRef.current = true;
     setControlsVisible(true);
     setControlsActivity((value) => value + 1);
   };
 
+  const handleHoverShowControls = () => {
+    if (Date.now() < suppressHoverControlsUntilRef.current) return;
+
+    handleShowControls();
+  };
+
   const handleHideControls = () => {
+    controlsVisibleRef.current = false;
     setControlsVisible(false);
   };
 
@@ -1129,8 +1189,8 @@ export function VideoPlayer({
           : surfaceSwipeOffset && 'transition-none'
       )}
       style={getSurfaceSwipeStyle(surfaceSwipeOffset)}
-      onMouseEnter={handleShowControls}
-      onMouseMove={handleShowControls}
+      onMouseEnter={handleHoverShowControls}
+      onMouseMove={handleHoverShowControls}
       onMouseLeave={handleHideControls}
       onPointerDown={handlePlayerPointerDown}
       onPointerUp={handlePlayerPointerUp}
@@ -1160,6 +1220,7 @@ export function VideoPlayer({
           )}
           src={playbackUrl}
           playsInline
+          onPointerUp={handleVideoPointerUp}
           onClick={handleClickVideo}
         />
       )}
@@ -1170,6 +1231,7 @@ export function VideoPlayer({
             aria-label='Back 10 seconds'
             data-player-tap-zone='true'
             className='pointer-events-auto h-full flex-1 cursor-default bg-transparent outline-none'
+            onPointerUp={handleTapZonePointerUp('left')}
             onClick={handleTapZoneClick('left')}
           />
           <button
@@ -1177,6 +1239,7 @@ export function VideoPlayer({
             aria-label='Forward 10 seconds'
             data-player-tap-zone='true'
             className='pointer-events-auto h-full flex-1 cursor-default bg-transparent outline-none'
+            onPointerUp={handleTapZonePointerUp('right')}
             onClick={handleTapZoneClick('right')}
           />
         </div>
@@ -1184,6 +1247,7 @@ export function VideoPlayer({
       {isAudioOnly && (
         <div
           className='absolute inset-0 flex cursor-pointer items-center justify-center bg-black'
+          onPointerUp={handleVideoPointerUp}
           onClick={handleClickVideo}
         >
           <img

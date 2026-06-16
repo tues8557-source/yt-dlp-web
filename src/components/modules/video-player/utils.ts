@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
 
 import type {
   FullscreenOrientationLock,
@@ -53,7 +53,7 @@ export function getSurfaceFullscreenReleaseDistance() {
   return Math.min(window.innerHeight * 0.24, 190);
 }
 
-export function getTapSide(event: MouseEvent<HTMLElement>): TapSide {
+export function getTapSide(event: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>): TapSide {
   const rect = event.currentTarget.getBoundingClientRect();
   const x = event.clientX - rect.left;
 
