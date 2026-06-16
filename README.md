@@ -8,8 +8,6 @@ This fork publishes Docker images to GitHub Container Registry:
 ghcr.io/tues8557-source/yt-dlp-web:latest
 ```
 
-[Supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
-
 ## Preview
 
 | Mobile | Desktop |
@@ -20,20 +18,12 @@ ghcr.io/tues8557-source/yt-dlp-web:latest
 
 - Download videos, audio, playlists, and livestreams through a web UI.
 - Browse downloaded items in responsive gallery, list, audio, and playlist-focused views.
-- Play downloaded videos, audio files, playlist items, and file variants from the browser.
-- Use a mobile-friendly player with tap controls, double-tap 10-second seeking, long-press 2x playback, swipe gestures, and automatic landscape fullscreen for videos.
-- Save completed media for offline playback in the browser.
-- Reuse partially streamed media ranges through the browser cache when supported.
 - Organize downloaded files into custom playlists from the gallery.
-- Store local thumbnails in `/cache/thumbnails` and use embedded video thumbnails as a fallback.
 - Embed thumbnail, chapter markers, and metadata by default.
-- Choose quality presets or explicit video/audio formats.
+- Store local thumbnails in `/cache/thumbnails` and use embedded video thumbnails as a fallback.
+- Use a mobile-friendly player with tap controls, double-tap 10-second seeking, swipe gestures, and automatic landscape fullscreen for videos.
+- Reuse partially streamed media ranges through the browser cache when supported.
 - Set output filename templates with yt-dlp variables.
-- Download and embed subtitles.
-- Use cookies, proxy settings, live-from-start, and cut-video options.
-- Generate Safari-compatible playback variants when needed.
-- Delete files while keeping list entries, or remove list entries separately.
-- Start downloads from automation tools with the `/api/d` endpoint.
 
 ## Quick Start
 
@@ -43,13 +33,21 @@ Create a `docker-compose.yml` file:
 services:
   yt-dlp-web:
     image: ghcr.io/tues8557-source/yt-dlp-web:latest
-    container_name: yt-dlp-web
-    user: 1000:1000
+    pull_policy: always
+    container_name: yt-dlp
+    user: 1026:100 # User Id, Group Id Setting
+    environment:
+    #   If you need to protect the site, set AUTH_SECRET, CREDENTIAL_USERNAME, CREDENTIAL_PASSWORD.
+    #   ex)
+       AUTH_SECRET: "use random API Key generator"
+       CREDENTIAL_USERNAME: "your id"
+       CREDENTIAL_PASSWORD: "your password"
+       API_TOKEN: "use random API Key generator"
     volumes:
-      - /path/to/downloads:/downloads
-      - /path/to/cache:/cache
+      - /volume1/docker/yt/downloads:/downloads # Downloads folder, this is example (downloaded media files)
+      - /volume1/docker/yt/cache:/cache         # Cache folder, this is example (app cache, download list, cookies, local thumbnails)
     ports:
-      - 3000:3000
+      - 3000:3000 # Web Page Port Mapping
     restart: unless-stopped
 ```
 
@@ -98,7 +96,6 @@ Controls:
 | --- | --- |
 | Single tap/click | Show controls, then play/pause if controls are already visible |
 | Double tap left/right | Seek backward/forward 10 seconds |
-| Long press | Temporarily play at 2x speed |
 | Swipe up on the player surface | Enter fullscreen when supported |
 | Swipe down on the player surface | Close the player |
 | Swipe from the left edge | Close the player |
