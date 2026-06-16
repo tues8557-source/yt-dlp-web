@@ -833,7 +833,7 @@ encode speed ${video.download.ffmpeg.speed}`
                   </Button>
                 ) : (
                   <>
-                    <Button size='sm' className='p-0 h-[1.7em] text-lg rounded-xl rounded-l-none'>
+                    <Button size='sm' className='p-0 h-[1.7em] text-lg rounded-none'>
                       <a
                         className='flex items-center w-full h-full px-3'
                         href={isCompleted ? `/api/file?uuid=${video.uuid}&download=true` : ''}
