@@ -177,10 +177,17 @@ export function VideoPlayer({
     surfaceSwipeOffset > 0 || (isEdgeSwipeClosing && closeAnimationDirection === 'down');
   const playerThumbnailUrl = `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}`;
   const [offlineMediaUrl, setOfflineMediaUrl] = useState('');
+  const [offlineMediaMissing, setOfflineMediaMissing] = useState(false);
   const [isResolvingOfflineMedia, setResolvingOfflineMedia] = useState(true);
   const isOfflinePlayback = Boolean(offlineMediaUrl);
-  const playbackUrl = isResolvingOfflineMedia ? '' : offlineMediaUrl || videoFileUrl;
-  const cachedRanges = useMediaRangeCache(videoFileUrl, !isOfflinePlayback && !isResolvingOfflineMedia);
+  const shouldUseOfflineOnly = Boolean(videoInfo.offlineKey);
+  const playbackUrl = isResolvingOfflineMedia
+    ? ''
+    : offlineMediaUrl || (shouldUseOfflineOnly ? '' : videoFileUrl);
+  const cachedRanges = useMediaRangeCache(
+    videoFileUrl,
+    !shouldUseOfflineOnly && !isOfflinePlayback && !isResolvingOfflineMedia
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -211,18 +218,33 @@ export function VideoPlayer({
   useEffect(() => {
     let objectUrl = '';
     let isCanceled = false;
-    const key = videoInfo.offlineKey || getOfflineMediaKey(videoInfo.uuid, videoInfo.playlistVideoUuid);
+    const fallbackKey = getOfflineMediaKey(videoInfo.uuid, videoInfo.playlistVideoUuid);
+    const keys = Array.from(new Set([videoInfo.offlineKey, fallbackKey].filter(Boolean))) as string[];
 
     setOfflineMediaUrl('');
+    setOfflineMediaMissing(false);
     setResolvingOfflineMedia(true);
 
     (async () => {
       try {
-        const record = await getOfflineMedia(key).catch(() => null);
-        if (!record || isCanceled) return;
+        let record = null;
+        for (const key of keys) {
+          record = await getOfflineMedia(key).catch(() => null);
+          if (record) break;
+        }
+
+        if (!record) {
+          if (videoInfo.offlineKey && !isCanceled) {
+            setOfflineMediaMissing(true);
+            useVideoPlayerStore.getState().setNotSupportedCodec(true);
+          }
+          return;
+        }
+        if (isCanceled) return;
 
         objectUrl = createOfflineObjectUrl(record);
         setOfflineMediaUrl(objectUrl);
+        setOfflineMediaMissing(false);
       } finally {
         if (!isCanceled) {
           setResolvingOfflineMedia(false);
@@ -1508,7 +1530,9 @@ export function VideoPlayer({
       {isNotSupportedCodec && (
         <div className='absolute inset-0 flex items-center text-center pointer-events-none'>
           <div className='w-full bg-black/70 py-2 text-sm text-white md:text-base'>
-            The file does not exist or cannot be played.
+            {offlineMediaMissing
+              ? 'The offline copy is missing or cannot be played.'
+              : 'The file does not exist or cannot be played.'}
           </div>
         </div>
       )}

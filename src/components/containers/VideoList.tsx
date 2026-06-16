@@ -186,7 +186,7 @@ function createOfflineVideoInfo(item: OfflineMediaSummary): VideoInfo {
   const now = item.updatedAt || item.savedAt;
 
   return {
-    uuid: item.key,
+    uuid: item.uuid,
     offlineKey: item.key,
     playlistVideoUuid: item.playlistVideoUuid,
     id: null,

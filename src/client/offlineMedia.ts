@@ -137,6 +137,10 @@ export async function saveOfflineVideo(video: VideoInfo, playlistItem?: NonNulla
 
   const mimeType = response.headers.get('content-type') || 'application/octet-stream';
   const blob = new Blob(chunks, { type: mimeType });
+  if (!blob.size || /^application\/json\b|^text\/html\b/i.test(mimeType)) {
+    throw new Error('Downloaded offline media is not playable.');
+  }
+
   const record: OfflineMediaRecord = {
     key,
     kind: isPlaylistItem ? 'playlist-item' : 'video',
