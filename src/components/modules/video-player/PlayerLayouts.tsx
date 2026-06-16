@@ -17,6 +17,7 @@ type ResponsivePlayerLayoutProps = {
   edgeSwipeOffset: number;
   isAudioOnly: boolean;
   isEdgeSwipeClosing: boolean;
+  isSurfaceSwipeDismissing: boolean;
   metaHeader: ReactNode;
   playerSurface: ReactNode;
   queuePanel: ReactNode;
@@ -46,6 +47,7 @@ export function ResponsivePlayerLayout({
   edgeSwipeOffset,
   isAudioOnly,
   isEdgeSwipeClosing,
+  isSurfaceSwipeDismissing,
   metaHeader,
   playerSurface,
   queuePanel,
@@ -57,7 +59,8 @@ export function ResponsivePlayerLayout({
   return (
     <div
       className={cn(
-        'flex h-full min-w-[var(--site-min-width)] overflow-hidden bg-background text-foreground shadow-[-18px_0_40px_rgba(0,0,0,0.28)] md:block md:overflow-y-auto',
+        'flex h-full min-w-[var(--site-min-width)] overflow-hidden text-foreground shadow-[-18px_0_40px_rgba(0,0,0,0.28)] transition-[background-color,transform] duration-150 md:block md:overflow-y-auto',
+        isSurfaceSwipeDismissing ? 'bg-transparent shadow-none' : 'bg-background',
         isEdgeSwipeClosing ? 'transition-transform duration-200 ease-out' : edgeSwipeOffset > 0 && 'transition-none'
       )}
       style={{
@@ -85,7 +88,12 @@ export function ResponsivePlayerLayout({
           )}
         >
           {playerSurface}
-          <section className='flex min-h-0 flex-1 flex-col overflow-hidden pt-3 md:block md:overflow-visible [@media_(orientation:landscape)_and_(max-height:540px)]:pt-0'>
+          <section
+            className={cn(
+              'flex min-h-0 flex-1 flex-col overflow-hidden pt-3 transition-opacity duration-150 md:block md:overflow-visible [@media_(orientation:landscape)_and_(max-height:540px)]:pt-0',
+              isSurfaceSwipeDismissing && 'pointer-events-none opacity-0'
+            )}
+          >
             {metaHeader}
             {queuePanel}
           </section>

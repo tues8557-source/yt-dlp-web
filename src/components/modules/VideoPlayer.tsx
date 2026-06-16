@@ -173,6 +173,8 @@ export function VideoPlayer({
   );
   const variantItems = Array.isArray(videoInfo.variants) ? videoInfo.variants : [];
   const isAudioOnly = isAudioFile(videoInfo);
+  const isSurfaceSwipeDismissing =
+    surfaceSwipeOffset > 0 || (isEdgeSwipeClosing && closeAnimationDirection === 'down');
   const playerThumbnailUrl = `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}`;
   const [offlineMediaUrl, setOfflineMediaUrl] = useState('');
   const [isResolvingOfflineMedia, setResolvingOfflineMedia] = useState(true);
@@ -1635,6 +1637,7 @@ export function VideoPlayer({
       edgeSwipeOffset={edgeSwipeOffset}
       isAudioOnly={isAudioOnly}
       isEdgeSwipeClosing={isEdgeSwipeClosing}
+      isSurfaceSwipeDismissing={isSurfaceSwipeDismissing}
       metaHeader={metaHeader}
       playerSurface={playerSurface}
       queuePanel={queuePanel}
