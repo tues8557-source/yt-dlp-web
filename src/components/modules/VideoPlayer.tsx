@@ -80,7 +80,6 @@ export function VideoPlayer({
   const lastTapRef = useRef<{ time: number; side: TapSide } | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
   const controlsVisibleRef = useRef(false);
-  const volumeRef = useRef(volume);
   const suppressControlsUntilRef = useRef(0);
   const suppressHoverControlsUntilRef = useRef(0);
   const suppressClickUntilRef = useRef(0);
@@ -158,10 +157,6 @@ export function VideoPlayer({
   useEffect(() => {
     controlsVisibleRef.current = controlsVisible;
   }, [controlsVisible]);
-
-  useEffect(() => {
-    volumeRef.current = volume;
-  }, [volume]);
 
   useEffect(() => {
     setControlsVisible(false);
@@ -619,13 +614,7 @@ export function VideoPlayer({
     clickTimeoutRef.current = window.setTimeout(async () => {
       clickTimeoutRef.current = null;
       lastTapRef.current = null;
-      if (!controlsVisibleRef.current) {
-        handleShowControls();
-        return;
-      }
-
-      videoEl.volume = typeof volumeRef.current === 'number' ? volumeRef.current : 0.75;
-      await togglePlayback();
+      handleShowControls();
     }, 320);
   };
 
