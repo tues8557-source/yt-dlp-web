@@ -21,9 +21,9 @@ import {
   PinOff,
   Play,
   Repeat,
-  RotateCcw,
-  RotateCw,
   Share2,
+  SkipBack,
+  SkipForward,
   Volume2,
   VolumeX,
   X
@@ -48,6 +48,12 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import {
+  createOfflineObjectUrl,
+  getOfflineMedia,
+  getOfflineMediaKey
+} from '@/client/offlineMedia';
+import { type MediaCachedRange, useMediaRangeCache } from '@/client/mediaRangeCache';
 
 export type VideoPlayerVideoInfo = {
   uuid: string;
@@ -75,6 +81,7 @@ export type VideoPlayerVideoInfo = {
   variants?: VideoPlayerFileVariant[];
   queueTitle?: string | null;
   queue?: VideoPlayerQueueItem[];
+  offlineKey?: string;
 };
 
 export type VideoPlayerProps = {
@@ -198,10 +205,35 @@ export function VideoPlayer({
   const variantItems = Array.isArray(videoInfo.variants) ? videoInfo.variants : [];
   const isAudioOnly = isAudioFile(videoInfo);
   const playerThumbnailUrl = `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}`;
+  const [offlineMediaUrl, setOfflineMediaUrl] = useState('');
+  const isOfflinePlayback = Boolean(offlineMediaUrl);
+  const playbackUrl = offlineMediaUrl || videoFileUrl;
+  const cachedRanges = useMediaRangeCache(videoFileUrl, !isOfflinePlayback);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    let objectUrl = '';
+    let isCanceled = false;
+    const key = videoInfo.offlineKey || getOfflineMediaKey(videoInfo.uuid, videoInfo.playlistVideoUuid);
+
+    setOfflineMediaUrl('');
+
+    (async () => {
+      const record = await getOfflineMedia(key).catch(() => null);
+      if (!record || isCanceled) return;
+
+      objectUrl = createOfflineObjectUrl(record);
+      setOfflineMediaUrl(objectUrl);
+    })();
+
+    return () => {
+      isCanceled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [videoInfo.offlineKey, videoInfo.playlistVideoUuid, videoInfo.uuid]);
 
   useEffect(() => {
     const handleMouseOut = (event: globalThis.MouseEvent) => {
@@ -554,9 +586,13 @@ export function VideoPlayer({
     clearPendingSingleTap();
     clickTimeoutRef.current = window.setTimeout(async () => {
       clickTimeoutRef.current = null;
+      if (!controlsVisible) {
+        handleShowControls();
+        return;
+      }
+
       videoEl.volume = typeof volume === 'number' ? volume : 0.75;
-      const action = await togglePlayback();
-      showPlaybackFeedback(action as PlaybackFeedback);
+      await togglePlayback();
     }, 220);
   };
 
@@ -740,12 +776,33 @@ export function VideoPlayer({
     playPlaylistVideo(playableItems[nextIndex]);
   };
 
+  const playPreviousPlaylistVideo = () => {
+    if (!hasPlaylistRepeat) return;
+
+    const playableItems = playlistItems.filter(
+      (item) => item?.uuid && item.path && !item.error && !item.isLive
+    );
+    const currentIndex = playableItems.findIndex((item) => item.uuid === videoInfo.playlistVideoUuid);
+    const previousIndex =
+      currentIndex >= 0 ? (currentIndex - 1 + playableItems.length) % playableItems.length : 0;
+    playPlaylistVideo(playableItems[previousIndex]);
+  };
+
   const playNextQueueVideo = () => {
     if (!hasQueueRepeat) return;
 
     const currentIndex = queueItems.findIndex((item) => item.uuid === videoInfo.uuid);
     const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % queueItems.length : 0;
     playQueueVideo(queueItems[nextIndex]);
+  };
+
+  const playPreviousQueueVideo = () => {
+    if (!hasQueueRepeat) return;
+
+    const currentIndex = queueItems.findIndex((item) => item.uuid === videoInfo.uuid);
+    const previousIndex =
+      currentIndex >= 0 ? (currentIndex - 1 + queueItems.length) % queueItems.length : 0;
+    playQueueVideo(queueItems[previousIndex]);
   };
 
   const playNextQueuedVideo = () => {
@@ -755,6 +812,15 @@ export function VideoPlayer({
     }
 
     playNextQueueVideo();
+  };
+
+  const playPreviousQueuedVideo = () => {
+    if (hasPlaylistRepeat) {
+      playPreviousPlaylistVideo();
+      return;
+    }
+
+    playPreviousQueueVideo();
   };
 
   const handleVolumeChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1067,7 +1133,7 @@ export function VideoPlayer({
             videoRef.current = element;
           }}
           className='hidden'
-          src={videoFileUrl}
+          src={playbackUrl}
         />
       ) : (
         <video
@@ -1078,7 +1144,7 @@ export function VideoPlayer({
             'h-full w-full object-contain outline-none',
             isTheaterMode && 'max-h-full max-w-full'
           )}
-          src={videoFileUrl}
+          src={playbackUrl}
           playsInline
           onClick={handleClickVideo}
         />
@@ -1122,22 +1188,32 @@ export function VideoPlayer({
         </div>
       )}
       {playbackFeedback && (
-        <div className='pointer-events-none absolute inset-0 z-20 flex select-none items-center justify-center'>
-          <div className='flex h-20 w-20 select-none items-center justify-center rounded-full bg-black/55 text-white shadow-lg animate-in fade-in zoom-in-95 duration-150'>
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-y-0 z-20 flex select-none items-center',
+            playbackFeedback === 'rewind'
+              ? 'left-[12%]'
+              : playbackFeedback === 'forward'
+                ? 'right-[12%]'
+                : 'left-1/2 -translate-x-1/2'
+          )}
+        >
+          <div
+            className={cn(
+              'flex select-none items-center justify-center rounded-full bg-black/55 text-white shadow-lg animate-in fade-in zoom-in-95 duration-150',
+              playbackFeedback === 'rewind' || playbackFeedback === 'forward'
+                ? 'h-24 min-w-28 px-6 text-5xl font-black tabular-nums'
+                : 'h-20 w-20'
+            )}
+          >
             {playbackFeedback === 'play' ? (
               <Play className='ml-1 h-10 w-10 fill-current' />
             ) : playbackFeedback === 'pause' ? (
               <Pause className='h-10 w-10 fill-current' />
             ) : playbackFeedback === 'rewind' ? (
-              <div className='flex flex-col items-center gap-0.5 text-xs font-semibold'>
-                <RotateCcw className='h-9 w-9' />
-                10
-              </div>
+              '-10'
             ) : playbackFeedback === 'forward' ? (
-              <div className='flex flex-col items-center gap-0.5 text-xs font-semibold'>
-                <RotateCw className='h-9 w-9' />
-                10
-              </div>
+              '+10'
             ) : (
               <span className='select-none text-2xl font-bold'>2x</span>
             )}
@@ -1163,12 +1239,15 @@ export function VideoPlayer({
         onClose={handleClose}
         onFullscreen={handleClickFullScreenButton}
         onMute={handleClickMute}
+        onNext={playNextQueuedVideo}
         onPlayPause={togglePlayback}
+        onPrevious={playPreviousQueuedVideo}
         onProgress={handleProgressChange}
         onRepeat={handleClickRepeatButton}
-        onSeekBackward={() => seekBy(-10)}
-        onSeekForward={() => seekBy(10)}
         onVolume={handleVolumeChange}
+        canPlayAdjacent={hasRepeatQueue}
+        isOfflinePlayback={isOfflinePlayback}
+        cachedRanges={cachedRanges}
       />
     </div>
   );
@@ -1307,14 +1386,17 @@ type PlayerControlsProps = {
   progressRef: RefObject<HTMLInputElement | null>;
   repeatMode: VideoRepeatMode;
   volume: number;
+  canPlayAdjacent: boolean;
+  isOfflinePlayback: boolean;
+  cachedRanges: MediaCachedRange[];
   onClose: () => void;
   onFullscreen: () => void;
   onMute: () => void;
+  onNext: () => void;
   onPlayPause: () => void;
+  onPrevious: () => void;
   onProgress: (event: ChangeEvent<HTMLInputElement>) => void;
   onRepeat: () => void;
-  onSeekBackward: () => void;
-  onSeekForward: () => void;
   onVolume: (event: ChangeEvent<HTMLInputElement>) => void;
 };
 
@@ -1327,128 +1409,158 @@ function PlayerControls({
   progressRef,
   repeatMode,
   volume,
+  canPlayAdjacent,
+  isOfflinePlayback,
+  cachedRanges,
   onClose,
   onFullscreen,
   onMute,
+  onNext,
   onPlayPause,
+  onPrevious,
   onProgress,
   onRepeat,
-  onSeekBackward,
-  onSeekForward,
   onVolume
 }: PlayerControlsProps) {
   return (
     <div
       className={cn(
-        'absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-3 pb-2 pt-10 text-white transition-opacity duration-150',
+        'pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-black/80 via-black/35 to-transparent text-white transition-opacity duration-150',
         controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
       )}
     >
-      <input
-        ref={progressRef}
-        type='range'
-        min={0}
-        max={duration || 0}
-        step='0.1'
-        value={Math.min(currentTime, duration || currentTime)}
-        onChange={onProgress}
-        className='h-1 w-full cursor-pointer accent-red-600'
-        aria-label='Seek'
-      />
-      <div className='mt-2 flex min-h-9 items-center justify-between gap-x-2'>
-        <div className='flex min-w-0 items-center gap-x-1.5'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='hidden h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white sm:inline-flex'
-            onClick={onSeekBackward}
-            title='Back 10 seconds'
-          >
-            <div className='relative'>
-              <RotateCcw className='h-5 w-5' />
-              <span className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[35%] text-[8px] font-bold leading-none'>
-                10
-              </span>
-            </div>
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onPlayPause}
-            title={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? <Pause className='h-5 w-5' /> : <Play className='h-5 w-5' />}
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='hidden h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white sm:inline-flex'
-            onClick={onSeekForward}
-            title='Forward 10 seconds'
-          >
-            <div className='relative'>
-              <RotateCw className='h-5 w-5' />
-              <span className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[35%] text-[8px] font-bold leading-none'>
-                10
-              </span>
-            </div>
-          </Button>
-          <div className='w-[5.75rem] shrink-0 text-xs tabular-nums text-white/90'>
-            {formatDuration(currentTime)} / {formatDuration(duration)}
-          </div>
-        </div>
-        <div className='flex shrink-0 items-center gap-x-1.5'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='relative h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onRepeat}
-            title={getRepeatTitle(repeatMode)}
-          >
-            <Repeat className='h-5 w-5' />
-            {repeatMode !== 'none' && (
-              <span className='absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-white px-0.5 text-[9px] font-bold leading-none text-black'>
-                {repeatMode === 'one' ? '1' : 'A'}
-              </span>
-            )}
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onMute}
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted ? <VolumeX className='h-5 w-5' /> : <Volume2 className='h-5 w-5' />}
-          </Button>
+      <div className='pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-x-5 sm:gap-x-7'>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='h-12 w-12 rounded-full bg-black/35 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 sm:h-14 sm:w-14'
+          onClick={onPrevious}
+          disabled={!canPlayAdjacent}
+          title='Previous video'
+        >
+          <SkipBack className='h-7 w-7 fill-current sm:h-8 sm:w-8' />
+        </Button>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='h-16 w-16 rounded-full bg-black/45 text-white hover:bg-white/20 hover:text-white sm:h-20 sm:w-20'
+          onClick={onPlayPause}
+          title={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? (
+            <Pause className='h-8 w-8 fill-current sm:h-10 sm:w-10' />
+          ) : (
+            <Play className='ml-1 h-8 w-8 fill-current sm:h-10 sm:w-10' />
+          )}
+        </Button>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='h-12 w-12 rounded-full bg-black/35 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 sm:h-14 sm:w-14'
+          onClick={onNext}
+          disabled={!canPlayAdjacent}
+          title='Next video'
+        >
+          <SkipForward className='h-7 w-7 fill-current sm:h-8 sm:w-8' />
+        </Button>
+      </div>
+
+      <div className='pointer-events-auto absolute inset-x-0 bottom-0 px-3 pb-2 pt-10'>
+        <div className='relative h-3'>
+          {isOfflinePlayback && (
+            <div className='pointer-events-none absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-emerald-400/80' />
+          )}
+          {!isOfflinePlayback &&
+            cachedRanges.map((range) => {
+              const total = range.total || duration || 0;
+              if (!total || range.end <= range.start) return null;
+
+              const left = Math.min(Math.max((range.start / total) * 100, 0), 100);
+              const width = Math.min(Math.max(((range.end - range.start + 1) / total) * 100, 0), 100 - left);
+
+              return (
+                <div
+                  key={`${range.start}-${range.end}`}
+                  className='pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-sky-400/75'
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                />
+              );
+            })}
           <input
+            ref={progressRef}
             type='range'
             min={0}
-            max={100}
-            value={isMuted ? 0 : Math.round((volume || 0) * 100)}
-            onChange={onVolume}
-            className='hidden h-1 w-20 cursor-pointer accent-white sm:block'
-            aria-label='Volume'
+            max={duration || 0}
+            step='0.1'
+            value={Math.min(currentTime, duration || currentTime)}
+            onChange={onProgress}
+            className='absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 cursor-pointer accent-red-600'
+            aria-label='Seek'
           />
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onFullscreen}
-            title='Full screen'
-          >
-            <Maximize2 className='h-5 w-5' />
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onClose}
-            title='Close'
-          >
-            <X className='h-5 w-5' />
-          </Button>
+        </div>
+        <div className='mt-2 flex min-h-9 items-center justify-between gap-x-2'>
+          <div className='flex min-w-0 items-center gap-x-2'>
+            <div className='w-[5.75rem] shrink-0 text-xs tabular-nums text-white/90 sm:w-auto'>
+              {formatDuration(currentTime)} / {formatDuration(duration)}
+            </div>
+            {(isOfflinePlayback || cachedRanges.length > 0) && (
+              <span className='hidden rounded-full bg-emerald-500/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black sm:inline-flex'>
+                {isOfflinePlayback ? 'Offline' : 'Cached'}
+              </span>
+            )}
+          </div>
+          <div className='flex shrink-0 items-center gap-x-1.5'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='relative h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              onClick={onRepeat}
+              title={getRepeatTitle(repeatMode)}
+            >
+              <Repeat className='h-5 w-5' />
+              {repeatMode !== 'none' && (
+                <span className='absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-white px-0.5 text-[9px] font-bold leading-none text-black'>
+                  {repeatMode === 'one' ? '1' : 'A'}
+                </span>
+              )}
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              onClick={onMute}
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <VolumeX className='h-5 w-5' /> : <Volume2 className='h-5 w-5' />}
+            </Button>
+            <input
+              type='range'
+              min={0}
+              max={100}
+              value={isMuted ? 0 : Math.round((volume || 0) * 100)}
+              onChange={onVolume}
+              className='hidden h-1 w-20 cursor-pointer accent-white sm:block'
+              aria-label='Volume'
+            />
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              onClick={onFullscreen}
+              title='Full screen'
+            >
+              <Maximize2 className='h-5 w-5' />
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              onClick={onClose}
+              title='Close'
+            >
+              <X className='h-5 w-5' />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -3,11 +3,13 @@
 import { useEffect } from 'react';
 import { useVideoPlayerStore } from '@/store/videoPlayer';
 import { useDownloadFormStore } from '@/store/downloadForm';
+import { registerOfflineMediaWorker } from '@/client/mediaRangeCache';
 
 export function RehydrateProvider() {
   useEffect(() => {
     useDownloadFormStore.persist.rehydrate();
     useVideoPlayerStore.persist.rehydrate();
+    void registerOfflineMediaWorker();
   }, []);
 
   return null;

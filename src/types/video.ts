@@ -59,6 +59,8 @@ export type SelectQuality =
 
 export interface VideoInfo {
   uuid: string;
+  offlineKey?: string;
+  playlistVideoUuid?: string;
   id: string | null;
   url: string;
   title: string | null;

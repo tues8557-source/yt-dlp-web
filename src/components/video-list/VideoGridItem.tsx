@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { LinkIcon, Settings, X } from 'lucide-react';
+import { CheckCircle2, HardDriveDownload, LinkIcon, Settings, Trash2, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { BsCheckCircleFill } from 'react-icons/bs';
 import { useVideoListStore } from '@/store/videoList';
@@ -37,6 +37,8 @@ import { DownloadOptionsInfoDialog } from './DownloadOptionsInfoDialog';
 import type { UserPlaylists } from '@/types/userPlaylist';
 import type { GetVideoList } from '@/server/yt-dlp-web';
 import type { VideoPlayerFileVariant, VideoPlayerQueueItem } from '@/components/modules/VideoPlayer';
+import { useOfflineMedia } from '@/client/useOfflineMedia';
+import { useMediaRangeCache } from '@/client/mediaRangeCache';
 
 export type VideoGridItemProps = {
   highlightPlaylistButton?: boolean;
@@ -139,6 +141,25 @@ export const VideoGridItem = ({
   const fileDuration = formatDuration(video.file.duration);
   const sourceVariants = getSameSourceVariants(video, items);
   const isAudioOnly = isAudioFile(video);
+  const {
+    deleteOffline,
+    getKey: getOfflineKey,
+    isAvailable: isOfflineAvailable,
+    itemMap: offlineItemMap,
+    progressMap: offlineProgressMap,
+    saveOffline
+  } = useOfflineMedia();
+  const offlineKey = video.offlineKey || getOfflineKey(video.uuid, video.playlistVideoUuid);
+  const offlineItem = offlineItemMap[offlineKey];
+  const offlineProgress = offlineProgressMap[offlineKey];
+  const isOfflineSaved = Boolean(offlineItem);
+  const isOfflineSaving = Boolean(offlineProgress && offlineProgress.progress < 1);
+  const rangeCacheUrl =
+    video.type === 'playlist' && video.playlistVideoUuid
+      ? `/api/playlist/file?uuid=${video.uuid}&itemUuid=${video.playlistVideoUuid}`
+      : `/api/file?uuid=${video.uuid}`;
+  const cachedRanges = useMediaRangeCache(rangeCacheUrl, isCompleted && !isOfflineSaved);
+  const hasPartialRangeCache = cachedRanges.length > 0;
 
   const [openDeleteList, setOpenDeleteList] = useState(false);
   const [openDeleteFile, setOpenDeleteFile] = useState(false);
@@ -439,7 +460,8 @@ export const VideoGridItem = ({
           containerName: video?.file?.containerName,
           variants: sourceVariants,
           queueTitle,
-          queue
+          queue,
+          offlineKey: isOfflineSaved || video.offlineKey ? offlineKey : undefined
         });
       } catch (e) {
         if (e === NOT_SUPPORTED) {
@@ -451,6 +473,31 @@ export const VideoGridItem = ({
 
   const handleClickOpenPlaylistButton = () => {
     setOpenPlaylistView(true);
+  };
+
+  const handleClickSaveOffline = async (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isCompleted || video.type === 'playlist' || isOfflineSaving) return;
+
+    try {
+      await saveOffline(video);
+      toast.success('Saved for offline playback.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save offline.');
+    }
+  };
+
+  const handleClickDeleteOffline = async (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      await deleteOffline(offlineKey);
+      toast.success('Removed offline copy.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove offline copy.');
+    }
   };
 
   const handleClosePlaylistView = () => {
@@ -660,6 +707,16 @@ encode speed ${video.download.ffmpeg.speed}`
               </Button>
             </div>
           )}
+          {isOfflineSaved && !isMouseEntered && (
+            <div className='absolute right-1.5 top-9 rounded-full bg-emerald-500 px-1.5 py-1 text-black shadow-sm'>
+              <CheckCircle2 className='h-4 w-4' />
+            </div>
+          )}
+          {!isOfflineSaved && hasPartialRangeCache && !isMouseEntered && (
+            <div className='absolute right-1.5 top-9 rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm'>
+              Cached
+            </div>
+          )}
           {!isMouseEntered && isAudioOnly && video?.type === 'video' && (
             <div className='absolute left-1.5 top-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white'>
               Audio
@@ -820,18 +877,38 @@ encode speed ${video.download.ffmpeg.speed}`
                     <CgPlayListSearch />
                   </Button>
                 ) : (
-                  <Button size='sm' className='p-0 h-[1.7em] text-lg rounded-none'>
-                    <a
-                      className='flex items-center w-full h-full px-3'
-                      href={isCompleted ? `/api/file?uuid=${video.uuid}&download=true` : ''}
-                      rel='noopener noreferrer'
-                      target='_blank'
-                      download={video?.status === 'completed' ? video.file.name : false}
-                      title='Download Video'
+                  <>
+                    <Button size='sm' className='p-0 h-[1.7em] text-lg rounded-none'>
+                      <a
+                        className='flex items-center w-full h-full px-3'
+                        href={isCompleted ? `/api/file?uuid=${video.uuid}&download=true` : ''}
+                        rel='noopener noreferrer'
+                        target='_blank'
+                        download={video?.status === 'completed' ? video.file.name : false}
+                        title='Download Video'
+                      >
+                        <AiOutlineCloudDownload />
+                      </a>
+                    </Button>
+                    <Button
+                      size='sm'
+                      className={cn(
+                        'h-[1.7em] text-lg rounded-none',
+                        isOfflineSaved
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      )}
+                      disabled={!isOfflineAvailable || isOfflineSaving}
+                      onClick={isOfflineSaved ? handleClickDeleteOffline : handleClickSaveOffline}
+                      title={isOfflineSaved ? 'Remove offline copy' : 'Save offline'}
                     >
-                      <AiOutlineCloudDownload />
-                    </a>
-                  </Button>
+                      {isOfflineSaved ? (
+                        <Trash2 className='h-4 w-4' />
+                      ) : (
+                        <HardDriveDownload className='h-4 w-4' />
+                      )}
+                    </Button>
+                  </>
                 )
               ) : (
                 <div className={cn(recommendedDownloadRetry && 'animate-pulse')}>
@@ -941,6 +1018,12 @@ encode speed ${video.download.ffmpeg.speed}`
           <div className='h-1 bg-zinc-500/50' />
         ) : isRecording ? (
           <div className='h-1 gradient-background' />
+        ) : isOfflineSaving ? (
+          <Progress
+            className='w-full h-1'
+            value={Math.round((offlineProgress?.progress || 0) * 100)}
+            title={offlineProgress ? `${Math.round(offlineProgress.progress * 100)}% offline saved` : ''}
+          />
         ) : isDownloading ? (
           <Progress
             className='w-full h-1'

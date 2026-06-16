@@ -8,6 +8,9 @@ import { VideoListHeader } from '@/components/video-list/VideoListHeader';
 import { VideoListBody } from '@/components/video-list/VideoListBody';
 import { GetVideoList } from '@/server/yt-dlp-web';
 import type { UserPlaylists } from '@/types/userPlaylist';
+import { useOfflineMedia } from '@/client/useOfflineMedia';
+import type { OfflineMediaSummary } from '@/client/offlineMedia';
+import type { VideoInfo } from '@/types/video';
 
 const MAX_INTERVAL_TIME = 120 * 1000;
 const MIN_INTERVAL_TIME = 3 * 1000;
@@ -21,7 +24,8 @@ export function VideoList() {
   const [viewMode, setViewMode] = useState<VideoListViewMode>('all');
   const [showPlaylistAddGuide, setShowPlaylistAddGuide] = useState(false);
 
-  const { data, isValidating, isLoading, mutate } = useSWR<GetVideoList>(
+  const { items: offlineItems } = useOfflineMedia();
+  const { data, error, isValidating, isLoading, mutate } = useSWR<GetVideoList>(
     '/api/list',
     async () => {
       const data = await axios.get<GetVideoList>('/api/list').then((res) => res.data);
@@ -65,6 +69,7 @@ export function VideoList() {
   );
 
   const handleClickReloadButton = mutate;
+  const mergedData = mergeOfflineItems(data, offlineItems);
 
   useEffect(() => {
     const handlePlaylistAddGuide = () => {
@@ -82,9 +87,9 @@ export function VideoList() {
   }, []);
 
   const searchedOrder =
-    data && search.trim()
-      ? data.orders.filter((uuid) => {
-          const item = data.items[uuid];
+    mergedData && search.trim()
+      ? mergedData.orders.filter((uuid) => {
+          const item = mergedData.items[uuid];
           if (!item) return false;
           const lowerCaseSearch = search.trim().toLowerCase();
           const title = item?.title?.toLowerCase();
@@ -92,11 +97,11 @@ export function VideoList() {
 
           return title?.includes(lowerCaseSearch) || filename?.includes(lowerCaseSearch);
         })
-      : data?.orders;
+      : mergedData?.orders;
   const filteredOrder =
-    data && searchedOrder
+    mergedData && searchedOrder
       ? searchedOrder.filter((uuid) => {
-          const item = data.items[uuid];
+          const item = mergedData.items[uuid];
           if (!item || viewMode === 'all' || viewMode === 'playlists') return true;
 
           const isAudio = isAudioItem(item);
@@ -128,9 +133,9 @@ export function VideoList() {
         </div>
       )}
       <VideoListHeader
-        items={data?.items}
+        items={mergedData?.items}
         orders={filteredOrder}
-        isValidating={isValidating}
+        isValidating={isValidating || Boolean(error)}
         search={search}
         setSearch={setSearch}
         viewMode={viewMode}
@@ -139,14 +144,95 @@ export function VideoList() {
       />
       <VideoListBody
         orders={filteredOrder}
-        items={data?.items}
+        items={mergedData?.items}
         userPlaylists={userPlaylists}
         viewMode={viewMode}
-        isLoading={isLoading}
+        isLoading={isLoading && !mergedData}
         highlightPlaylistButtons={showPlaylistAddGuide}
       />
     </Card>
   );
+}
+
+function mergeOfflineItems(data: GetVideoList | undefined, offlineItems: OfflineMediaSummary[]) {
+  const next: GetVideoList = {
+    orders: [...(data?.orders || [])],
+    items: {
+      ...(data?.items || {})
+    }
+  };
+
+  for (const offlineItem of offlineItems) {
+    const key = offlineItem.key;
+    const existingItem = next.items[offlineItem.uuid];
+    if (existingItem && offlineItem.kind === 'video') {
+      next.items[offlineItem.uuid] = {
+        ...existingItem,
+        offlineKey: key
+      };
+      continue;
+    }
+
+    if (next.items[key]) continue;
+
+    next.orders.push(key);
+    next.items[key] = createOfflineVideoInfo(offlineItem);
+  }
+
+  return next.orders.length ? next : data;
+}
+
+function createOfflineVideoInfo(item: OfflineMediaSummary): VideoInfo {
+  const now = item.updatedAt || item.savedAt;
+
+  return {
+    uuid: item.key,
+    offlineKey: item.key,
+    playlistVideoUuid: item.playlistVideoUuid,
+    id: null,
+    url: item.sourceUrl || '',
+    title: item.title,
+    description: null,
+    thumbnail: item.thumbnail || null,
+    uploadDate: null,
+    localThumbnail: item.localThumbnail || null,
+    thumbnailSource: item.thumbnailSource,
+    status: 'completed',
+    isLive: false,
+    format: '',
+    usingCookies: false,
+    embedThumbnail: false,
+    embedChapters: false,
+    embedMetadata: false,
+    embedVideoThumbnail: false,
+    embedSubs: false,
+    subLangs: [],
+    enableProxy: false,
+    enableLiveFromStart: false,
+    proxyAddress: '',
+    cutVideo: false,
+    cutStartTime: '',
+    cutEndTime: '',
+    outputFilename: '',
+    filenameLengthLimit: 0,
+    selectQuality: 'best',
+    enableForceKeyFramesAtCuts: false,
+    file: {
+      path: item.key,
+      name: item.filename || item.title,
+      size: item.size,
+      duration: typeof item.duration === 'number' ? String(item.duration) : item.duration || undefined
+    },
+    playlist: [],
+    download: {
+      pid: null,
+      progress: '1',
+      speed: null
+    },
+    createdAt: item.savedAt,
+    updatedAt: now,
+    type: 'video'
+  };
 }
 
 function isAudioItem(item: GetVideoList['items'][string]) {
