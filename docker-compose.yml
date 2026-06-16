@@ -1,19 +1,19 @@
 services:
   yt-dlp-web:
-    build: .
     image: ghcr.io/tues8557-source/yt-dlp-web:latest
-    container_name: yt-dlp-web
-    user: 1000:1000
-    # environment:
+    pull_policy: always
+    container_name: yt-dlp
+    user: 1026:100 # User Id, Group Id Setting
+    environment:
     #   If you need to protect the site, set AUTH_SECRET, CREDENTIAL_USERNAME, CREDENTIAL_PASSWORD.
-    #   AUTH_SECRET: "Random_string,_40+_characters_recommended"
-    #   CREDENTIAL_USERNAME: "username"
-    #   CREDENTIAL_PASSWORD: "password"
-    #   API_TOKEN: "Random_string_for_automation_download_api"
-    #   YT_DLP_DOWNLOAD_URL: "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+    #   ex)
+       AUTH_SECRET: "use random API Key generator"
+       CREDENTIAL_USERNAME: "your id"
+       CREDENTIAL_PASSWORD: "your password"
+       API_TOKEN: "use random API Key generator"
     volumes:
-      - ~/Desktop/downloads:/downloads
-      - ~/Desktop/cache:/cache
+      - /volume1/docker/yt/downloads:/downloads # Downloads folder, this is example
+      - /volume1/docker/yt/cache:/cache         # Cache folder, this is example
     ports:
-      - 3000:3000
+      - 3000:3000 # Web Page Port Mapping
     restart: unless-stopped
