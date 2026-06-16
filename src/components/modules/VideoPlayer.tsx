@@ -66,6 +66,9 @@ const KEYBOARD_SEEK_SECONDS = 5;
 const KEYBOARD_SKIP_SECONDS = 10;
 const KEYBOARD_VOLUME_STEP = 0.05;
 const KEYBOARD_RATE_STEP = 0.25;
+const FULLSCREEN_EXIT_RESUME_WINDOW_MS = 1500;
+const FULLSCREEN_EXIT_RESUME_ATTEMPTS_MS = [0, 80, 200, 450, 800, 1200];
+const MEDIA_SESSION_RESUME_ATTEMPTS_MS = [0, 120, 350, 800, 1400];
 
 function clampValue(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -111,6 +114,8 @@ export function VideoPlayer({
   const pinchStartZoomRef = useRef(1);
   const shouldResumeAfterFullscreenRef = useRef(false);
   const fullscreenExitResumeUntilRef = useRef(0);
+  const fullscreenResumeTimeoutsRef = useRef<number[]>([]);
+  const mediaSessionResumeTimeoutsRef = useRef<number[]>([]);
   const originalDocumentTitleRef = useRef<string | null>(null);
   const [isPlaying, setPlaying] = useState(false);
   const [isMuted, setMuted] = useState(false);
@@ -253,6 +258,9 @@ export function VideoPlayer({
         return;
       }
 
+      if (document.fullscreenElement) {
+        shouldResumeAfterFullscreenRef.current = false;
+      }
       setPlaying(false);
     };
     const handleTimeUpdate = () => {
@@ -415,18 +423,13 @@ export function VideoPlayer({
     }
 
     setMediaSessionActionHandler('play', async () => {
-      const videoEl = videoRef.current;
-      if (!videoEl) return;
-
-      try {
-        await videoEl.play();
-        setPlaying(true);
-      } catch (e) {}
+      scheduleMediaSessionResume();
     });
     setMediaSessionActionHandler('pause', () => {
       const videoEl = videoRef.current;
       if (!videoEl) return;
 
+      clearMediaSessionResumeTimers();
       videoEl.pause();
       setPlaying(false);
     });
@@ -523,49 +526,42 @@ export function VideoPlayer({
       if (!videoEl) return;
 
       if (isFullscreen) {
+        clearFullscreenResumeTimers();
         shouldResumeAfterFullscreenRef.current = !videoEl.paused;
         return;
       }
 
-      if (shouldResumeAfterFullscreenRef.current && videoEl.paused) {
-        void videoEl.play().catch(() => {});
-      }
-      fullscreenExitResumeUntilRef.current = Date.now() + 900;
-      window.setTimeout(() => {
-        if (shouldResumeAfterFullscreenRef.current && videoEl.paused) {
-          void videoEl.play().catch(() => {});
-        }
-        shouldResumeAfterFullscreenRef.current = false;
-      }, 160);
+      scheduleFullscreenExitResume();
     };
 
     const handleWebkitEndFullscreen = () => {
+      scheduleFullscreenExitResume();
+    };
+
+    const handleWebkitBeginFullscreen = () => {
+      clearFullscreenResumeTimers();
       const videoEl = videoRef.current;
-      fullscreenExitResumeUntilRef.current = Date.now() + 900;
-      if (shouldResumeAfterFullscreenRef.current && videoEl?.paused) {
-        void videoEl.play().catch(() => {});
-      }
-      window.setTimeout(() => {
-        const currentVideoEl = videoRef.current;
-        if (shouldResumeAfterFullscreenRef.current && currentVideoEl?.paused) {
-          void currentVideoEl.play().catch(() => {});
-        }
-        shouldResumeAfterFullscreenRef.current = false;
-      }, 160);
+      shouldResumeAfterFullscreenRef.current = Boolean(videoEl && !videoEl.paused);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     const videoEl = videoRef.current;
+    videoEl?.addEventListener?.('webkitbeginfullscreen', handleWebkitBeginFullscreen);
     videoEl?.addEventListener?.('webkitendfullscreen', handleWebkitEndFullscreen);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      videoEl?.removeEventListener?.('webkitbeginfullscreen', handleWebkitBeginFullscreen);
       videoEl?.removeEventListener?.('webkitendfullscreen', handleWebkitEndFullscreen);
     };
+    // Fullscreen listeners read refs and the current media element at event time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbackUrl]);
 
   useEffect(() => {
     return () => {
+      clearFullscreenResumeTimers();
+      clearMediaSessionResumeTimers();
       if (clickTimeoutRef.current) {
         window.clearTimeout(clickTimeoutRef.current);
       }
@@ -655,6 +651,88 @@ export function VideoPlayer({
       videoEl.playbackRate = longPressOriginalRateRef.current || 1;
     }
     isLongPressActiveRef.current = false;
+  };
+
+  const clearFullscreenResumeTimers = () => {
+    fullscreenResumeTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    fullscreenResumeTimeoutsRef.current = [];
+  };
+
+  const clearMediaSessionResumeTimers = () => {
+    mediaSessionResumeTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    mediaSessionResumeTimeoutsRef.current = [];
+  };
+
+  const scheduleFullscreenExitResume = () => {
+    if (!shouldResumeAfterFullscreenRef.current) return;
+
+    clearFullscreenResumeTimers();
+    fullscreenExitResumeUntilRef.current = Date.now() + FULLSCREEN_EXIT_RESUME_WINDOW_MS;
+
+    FULLSCREEN_EXIT_RESUME_ATTEMPTS_MS.forEach((delay, index) => {
+      const timeoutId = window.setTimeout(() => {
+        const videoEl = videoRef.current;
+        const canResume =
+          shouldResumeAfterFullscreenRef.current &&
+          Date.now() <= fullscreenExitResumeUntilRef.current &&
+          videoEl &&
+          videoEl.paused &&
+          !videoEl.ended;
+
+        if (canResume) {
+          void videoEl
+            .play()
+            .then(() => setPlaying(true))
+            .catch(() => {});
+        }
+
+        if (index === FULLSCREEN_EXIT_RESUME_ATTEMPTS_MS.length - 1) {
+          shouldResumeAfterFullscreenRef.current = false;
+          fullscreenResumeTimeoutsRef.current = [];
+        }
+      }, delay);
+      fullscreenResumeTimeoutsRef.current.push(timeoutId);
+    });
+  };
+
+  const scheduleMediaSessionResume = () => {
+    clearMediaSessionResumeTimers();
+
+    MEDIA_SESSION_RESUME_ATTEMPTS_MS.forEach((delay, index) => {
+      const timeoutId = window.setTimeout(async () => {
+        const videoEl = videoRef.current;
+        if (!videoEl || !videoEl.paused || videoEl.ended) {
+          if (index === MEDIA_SESSION_RESUME_ATTEMPTS_MS.length - 1) {
+            mediaSessionResumeTimeoutsRef.current = [];
+          }
+          return;
+        }
+
+        try {
+          if (videoEl.readyState === 0) {
+            videoEl.load();
+          }
+          await videoEl.play();
+          setPlaying(true);
+          clearMediaSessionResumeTimers();
+        } catch (e) {
+          if (index === 0) {
+            try {
+              videoEl.load();
+            } catch {}
+          }
+
+          if (index === MEDIA_SESSION_RESUME_ATTEMPTS_MS.length - 1) {
+            setPlaying(false);
+            controlsVisibleRef.current = true;
+            setControlsVisible(true);
+            useVideoPlayerStore.getState().setNotSupportedCodec(!isAutoplayBlockedError(e));
+            mediaSessionResumeTimeoutsRef.current = [];
+          }
+        }
+      }, delay);
+      mediaSessionResumeTimeoutsRef.current.push(timeoutId);
+    });
   };
 
   const seekBy = (seconds: number) => {
@@ -1370,6 +1448,7 @@ export function VideoPlayer({
             videoRef.current = element;
           }}
           className='hidden'
+          preload='auto'
           src={playbackUrl}
         />
       ) : (
@@ -1387,6 +1466,7 @@ export function VideoPlayer({
             transition: pinchZoom === MIN_PINCH_ZOOM ? 'transform 160ms ease-out' : 'none'
           }}
           src={playbackUrl}
+          preload='auto'
           playsInline
           onPointerUp={handleVideoPointerUp}
           onClick={handleClickVideo}
