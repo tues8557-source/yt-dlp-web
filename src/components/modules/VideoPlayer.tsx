@@ -61,7 +61,8 @@ export type {
   VideoPlayerVideoInfo
 } from '@/components/modules/video-player/types';
 
-const SINGLE_TAP_DELAY_MS = 340;
+const SINGLE_TAP_DELAY_MS = 520;
+const CONTROLS_AUTO_HIDE_MS = 5000;
 
 export function VideoPlayer({
   isNotSupportedCodec,
@@ -79,7 +80,7 @@ export function VideoPlayer({
   const surfaceSwipeMovedRef = useRef(false);
   const edgeTouchStartRef = useRef<TouchPoint | null>(null);
   const clickTimeoutRef = useRef<number | null>(null);
-  const lastTapRef = useRef<{ time: number; side: TapSide } | null>(null);
+  const lastTapRef = useRef<{ time: number; side: TapSide; controlsVisible: boolean } | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
   const controlsVisibleRef = useRef(false);
   const suppressControlsUntilRef = useRef(0);
@@ -315,7 +316,7 @@ export function VideoPlayer({
 
     const timeout = window.setTimeout(() => {
       setControlsVisible(false);
-    }, 2400);
+    }, CONTROLS_AUTO_HIDE_MS);
 
     return () => window.clearTimeout(timeout);
   }, [controlsVisible, isPlaying, controlsActivity, videoInfo.uuid, videoInfo.playlistVideoUuid]);
@@ -608,10 +609,13 @@ export function VideoPlayer({
       lastTapRef.current = null;
       suppressControlsUntilRef.current = now + 500;
       seekBy(side === 'left' ? -10 : 10);
+      if (!lastTap.controlsVisible) {
+        handleHideControls();
+      }
       return;
     }
 
-    lastTapRef.current = { time: now, side };
+    lastTapRef.current = { time: now, side, controlsVisible: controlsVisibleRef.current };
     clearPendingSingleTap();
     clickTimeoutRef.current = window.setTimeout(async () => {
       clickTimeoutRef.current = null;
