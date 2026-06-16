@@ -19,8 +19,12 @@ ghcr.io/tues8557-source/yt-dlp-web:latest
 ## Features
 
 - Download videos, audio, playlists, and livestreams through a web UI.
-- Browse downloaded items in a responsive gallery or list view.
-- Play downloaded videos from the browser, including playlist items.
+- Browse downloaded items in responsive gallery, list, audio, and playlist-focused views.
+- Play downloaded videos, audio files, playlist items, and file variants from the browser.
+- Use a mobile-friendly player with tap controls, double-tap 10-second seeking, long-press 2x playback, swipe gestures, and automatic landscape fullscreen for videos.
+- Save completed media for offline playback in the browser.
+- Reuse partially streamed media ranges through the browser cache when supported.
+- Organize downloaded files into custom playlists from the gallery.
 - Store local thumbnails in `/cache/thumbnails` and use embedded video thumbnails as a fallback.
 - Embed thumbnail, chapter markers, and metadata by default.
 - Choose quality presets or explicit video/audio formats.
@@ -65,6 +69,63 @@ The container needs write access to both mounted folders:
 
 - `/downloads`: downloaded media files
 - `/cache`: app cache, download list, cookies, local thumbnails
+
+## Using The Web UI
+
+### Downloading
+
+1. Paste a supported media URL into the input at the top of the page.
+2. Choose whether to download immediately, search first, or adjust options such as quality, output filename, subtitles, cookies, proxy, livestream handling, or cutting.
+3. Click **Download**. Active downloads appear in the gallery with progress, speed, and status.
+
+For audio-only downloads, set the quality selector to **Audio**. For exact format control, search first and choose the video/audio formats shown in the result.
+
+### Gallery And Playlists
+
+Downloaded items are shown in the gallery after they complete. Use the view buttons to switch between all files, videos, audio files, and playlists.
+
+Each completed item can be played, downloaded, shared, edited, deleted, added to a custom playlist, or saved for offline playback. Playlist downloads can be opened to browse and play individual playlist items.
+
+Custom playlists are stored by the app in `/cache`. They do not move the underlying media files; they only organize existing downloaded items.
+
+### Browser Player
+
+The player supports video, audio, playlist items, and multiple downloaded variants from the same source.
+
+Controls:
+
+| Action | Result |
+| --- | --- |
+| Single tap/click | Show controls, then play/pause if controls are already visible |
+| Double tap left/right | Seek backward/forward 10 seconds |
+| Long press | Temporarily play at 2x speed |
+| Swipe up on the player surface | Enter fullscreen when supported |
+| Swipe down on the player surface | Close the player |
+| Swipe from the left edge | Close the player |
+| Rotate a phone to landscape while playing video | Attempt fullscreen automatically |
+
+On portrait phones, the media surface stays visible while the lower playlist/file list scrolls. On landscape phones, audio playback uses a side-by-side layout with the thumbnail on the left and the playlist or file list on the right.
+
+The player also supports:
+
+- Previous/next playback for playlists and gallery queues.
+- Repeat one or repeat playlist/queue.
+- Share links to the player, source URL, or downloadable file.
+- Capturing the current video frame as a local thumbnail.
+- Opening alternate downloaded variants from the info menu.
+
+### Offline Playback And Cache
+
+Completed videos, audio files, and playlist items can be saved for offline playback from the gallery or playlist item menu. Offline copies are stored in the browser's IndexedDB for the current browser profile and device.
+
+When an offline copy exists, playback uses the browser-stored file even if the server-side file is unavailable. Removing an offline copy only deletes the browser copy; it does not delete the server file.
+
+The player can also cache streamed byte ranges through a service worker. This partial cache is separate from the full offline copy:
+
+- **Cached** means the browser has reused one or more streamed ranges.
+- **Offline** means the full file was saved to browser storage.
+
+Offline playback and range caching require browser support for IndexedDB, Cache Storage, and service workers. Some private browsing modes or locked-down mobile browsers may limit these features.
 
 ## Authentication
 
@@ -183,12 +244,12 @@ For local development without Docker, set `DOWNLOAD_PATH` and `CACHE_PATH` to wr
 - yt-dlp
 - ffmpeg
 - Node.js 22+
-- Next.js 14
-- React 18
+- Next.js 16
+- React 19
 - TypeScript
 - shadcn/ui
 - Docker
 
 ## Notes
 
-This project is a fork of `sooros5132/yt-dlp-web`. The README now documents this fork's current Docker image, authentication/API behavior, local thumbnail handling, and gallery changes.
+This project is a fork of `sooros5132/yt-dlp-web`. This README documents this fork's current Docker image, authentication/API behavior, local thumbnail handling, gallery/player workflow, offline playback, and mobile playback behavior.
