@@ -112,7 +112,7 @@ export function VideoList() {
   return (
     <Card
       id='video-gallery-playlist-guide'
-      className='relative p-4 overflow-hidden border-none shadow-md'
+      className='relative overflow-visible border-none p-4 shadow-md'
     >
       {showPlaylistAddGuide && (
         <div className='mb-4 flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between'>

@@ -235,7 +235,7 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
   return (
     <div
       className={cn(
-        'relative flex min-h-8 justify-between items-center mb-4 flex-nowrap gap-2',
+        'sticky top-0 z-40 -mx-4 mb-4 flex min-h-8 flex-nowrap items-center justify-between gap-2 bg-card/95 px-4 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:relative lg:top-auto lg:z-auto lg:mx-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none',
         isSelectMode && 'flex-wrap'
       )}
     >
@@ -317,8 +317,8 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
               variant='outline'
               size='icon'
               className={cn(
-                'h-full w-10 shrink-0 px-1 text-xl text-muted-foreground hover:text-muted-foreground lg:w-8',
-                isSearchExpanded ? 'rounded-none border-none' : 'rounded-full border-none lg:rounded-none'
+                'h-full shrink-0 p-0 text-xl text-muted-foreground hover:text-muted-foreground lg:w-8',
+                isSearchExpanded ? 'w-10 rounded-none border-none' : 'w-8 rounded-full border-none lg:rounded-none'
               )}
               onClick={handleClickSearchButton}
             >
