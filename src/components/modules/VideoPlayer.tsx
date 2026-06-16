@@ -79,6 +79,7 @@ export function VideoPlayer({
   const clickTimeoutRef = useRef<number | null>(null);
   const lastTapRef = useRef<{ time: number; side: TapSide } | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
+  const suppressControlsUntilRef = useRef(0);
   const longPressOriginalRateRef = useRef(1);
   const isLongPressActiveRef = useRef(false);
   const suppressNextClickRef = useRef(false);
@@ -584,6 +585,7 @@ export function VideoPlayer({
     if (lastTap && lastTap.side === side && now - lastTap.time < 280) {
       clearPendingSingleTap();
       lastTapRef.current = null;
+      suppressControlsUntilRef.current = now + 500;
       seekBy(side === 'left' ? -10 : 10);
       return;
     }
@@ -603,11 +605,13 @@ export function VideoPlayer({
   };
 
   const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
     event.stopPropagation();
     await handlePlayerTap(getTapSide(event));
   };
 
   const handleTapZoneClick = (side: TapSide) => async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
     event.stopPropagation();
     await handlePlayerTap(side);
   };
@@ -983,6 +987,8 @@ export function VideoPlayer({
   };
 
   const handleShowControls = () => {
+    if (Date.now() < suppressControlsUntilRef.current) return;
+
     setControlsVisible(true);
     setControlsActivity((value) => value + 1);
   };

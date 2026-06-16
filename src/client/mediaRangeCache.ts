@@ -8,8 +8,17 @@ export type MediaCachedRange = {
   total: number;
 };
 
+type MediaCachedRangeWithSource = MediaCachedRange & {
+  source: string;
+};
+
 const RANGE_CACHE_NAME = 'yt-dlp-web-range-cache-v1';
 const RANGE_CACHE_PATH = '/__yt_dlp_range_cache__';
+const RANGE_CACHE_INDEX_TTL = 2000;
+
+let rangeIndex: MediaCachedRangeWithSource[] = [];
+let rangeIndexLoadedAt = 0;
+let rangeIndexPromise: Promise<MediaCachedRangeWithSource[]> | null = null;
 
 export async function registerOfflineMediaWorker() {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
@@ -58,12 +67,13 @@ export function useMediaRangeCache(sourceUrl: string, enabled = true) {
       if (!data || data.source !== source) return;
       if (data.type !== 'range-cache-updated' && data.type !== 'range-cache-hit') return;
 
+      rangeIndexLoadedAt = 0;
       void refresh();
     };
 
     void refresh();
     navigator.serviceWorker?.addEventListener('message', handleMessage);
-    const interval = window.setInterval(refresh, 5000);
+    const interval = window.setInterval(refresh, 30000);
 
     return () => {
       isMounted = false;
@@ -76,15 +86,34 @@ export function useMediaRangeCache(sourceUrl: string, enabled = true) {
 }
 
 async function listCachedRanges(source: string) {
+  const ranges = await listAllCachedRanges();
+
+  return mergeRanges(ranges.filter((range) => range.source === source));
+}
+
+async function listAllCachedRanges() {
   if (typeof caches === 'undefined') return [];
 
-  const cache = await caches.open(RANGE_CACHE_NAME);
-  const requests = await cache.keys();
-  const ranges = requests.map(parseRangeCacheRequest).filter(
-    (range): range is MediaCachedRange & { source: string } => Boolean(range && range.source === source)
-  );
+  const now = Date.now();
+  if (rangeIndexPromise) return rangeIndexPromise;
+  if (now - rangeIndexLoadedAt < RANGE_CACHE_INDEX_TTL) return rangeIndex;
 
-  return mergeRanges(ranges);
+  rangeIndexPromise = (async () => {
+    const cache = await caches.open(RANGE_CACHE_NAME);
+    const requests = await cache.keys();
+    rangeIndex = requests
+      .map(parseRangeCacheRequest)
+      .filter((range): range is MediaCachedRangeWithSource => Boolean(range));
+    rangeIndexLoadedAt = Date.now();
+    rangeIndexPromise = null;
+
+    return rangeIndex;
+  })().catch((error) => {
+    rangeIndexPromise = null;
+    throw error;
+  });
+
+  return rangeIndexPromise;
 }
 
 function parseRangeCacheRequest(request: Request) {

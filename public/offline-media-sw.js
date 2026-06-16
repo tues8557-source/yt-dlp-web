@@ -21,14 +21,20 @@ self.addEventListener('fetch', (event) => {
   const rangeHeader = request.headers.get('range');
   if (!rangeHeader) return;
 
-  event.respondWith(handleRangeRequest(request, url, rangeHeader));
+  event.respondWith(handleRangeRequest(event, request, url, rangeHeader));
 });
 
-async function handleRangeRequest(request, url, rangeHeader) {
+async function handleRangeRequest(event, request, url, rangeHeader) {
   const requestedRange = parseRangeHeader(rangeHeader);
   const source = getRangeSourceKey(url);
-  if (requestedRange) {
-    const cachedResponse = await getCachedRangeResponse(source, requestedRange.start, requestedRange.end);
+  let response;
+
+  try {
+    response = await fetch(request);
+  } catch (error) {
+    const cachedResponse = requestedRange
+      ? await getCachedRangeResponse(source, requestedRange.start, requestedRange.end)
+      : null;
     if (cachedResponse) {
       notifyClients({
         type: 'range-cache-hit',
@@ -39,9 +45,10 @@ async function handleRangeRequest(request, url, rangeHeader) {
       });
       return cachedResponse.response;
     }
+
+    throw error;
   }
 
-  const response = await fetch(request);
   if (response.status !== 206) {
     return response;
   }
@@ -51,17 +58,19 @@ async function handleRangeRequest(request, url, rangeHeader) {
     return response;
   }
 
-  const responseForBrowser = response.clone();
-  await cacheRangeResponse(source, contentRange, response).catch(() => {});
-  notifyClients({
-    type: 'range-cache-updated',
-    source,
-    start: contentRange.start,
-    end: contentRange.end,
-    total: contentRange.total
-  });
+  event.waitUntil(
+    cacheRangeResponse(source, contentRange, response.clone()).then(() =>
+      notifyClients({
+        type: 'range-cache-updated',
+        source,
+        start: contentRange.start,
+        end: contentRange.end,
+        total: contentRange.total
+      })
+    ).catch(() => {})
+  );
 
-  return responseForBrowser;
+  return response;
 }
 
 async function getCachedRangeResponse(source, requestedStart, requestedEnd) {
