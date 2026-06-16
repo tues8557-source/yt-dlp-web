@@ -1,5 +1,5 @@
 import { CacheHelper } from '@/server/helpers/CacheHelper';
-import type { VideoPlayerVideoInfo } from '@/components/modules/VideoPlayer';
+import type { VideoPlayerVideoInfo } from '@/components/modules/video-player/types';
 import { WatchVideoPlayer } from '@/components/containers/WatchVideoPlayer';
 import type { VideoInfo } from '@/types/video';
 

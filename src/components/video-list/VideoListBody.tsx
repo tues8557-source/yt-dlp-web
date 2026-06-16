@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { type VideoListProps, type VideoListViewMode } from '@/components/containers/VideoList';
 import { isPropsEquals } from '@/lib/utils';
 import type { UserPlaylists } from '@/types/userPlaylist';
-import type { VideoPlayerQueueItem } from '@/components/modules/VideoPlayer';
+import type { VideoPlayerQueueItem } from '@/components/modules/video-player/types';
 
 const getUserPlaylistSectionId = (playlistId: string) => `user-playlist-${playlistId}`;
 const AUDIO_PLAYLIST_ID = 'system-audio-playlist';

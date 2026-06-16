@@ -1,7 +1,7 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { shallow } from 'zustand/shallow';
-import type { VideoPlayerVideoInfo } from '@/components/modules/VideoPlayer';
+import type { VideoPlayerVideoInfo } from '@/components/modules/video-player/types';
 
 export type VideoRepeatMode = 'none' | 'one' | 'all';
 

@@ -1,132 +1,65 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ChangeEvent, MouseEvent, PointerEvent, RefObject, TouchEvent } from 'react';
+import type { ChangeEvent, MouseEvent, PointerEvent, TouchEvent } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'react-toastify';
-import {
-  Camera,
-  Check,
-  Copy,
-  Download,
-  ExternalLink,
-  FileDown,
-  Info,
-  ListVideo,
-  Maximize2,
-  MoreVertical,
-  Music2,
-  Pause,
-  Pin,
-  PinOff,
-  Play,
-  Repeat,
-  Share2,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
-  X
-} from 'lucide-react';
-import { TbViewportNarrow, TbViewportWide } from 'react-icons/tb';
+import { ListVideo, Music2, Pause, Play } from 'lucide-react';
 
 import type { WithoutNullableKeys } from '@/types/types';
 import type { VideoInfo } from '@/types/video';
-import type { VideoPlayerStore, VideoRepeatMode } from '@/store/videoPlayer';
 
 import { cn } from '@/lib/utils';
 import { useVideoPlayerStore } from '@/store/videoPlayer';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import {
   createOfflineObjectUrl,
   getOfflineMedia,
   getOfflineMediaKey
 } from '@/client/offlineMedia';
-import { type MediaCachedRange, useMediaRangeCache } from '@/client/mediaRangeCache';
+import { useMediaRangeCache } from '@/client/mediaRangeCache';
+import { ResponsivePlayerLayout, TheaterPlayerLayout } from '@/components/modules/video-player/PlayerLayouts';
+import { PlayerControls } from '@/components/modules/video-player/PlayerControls';
+import { CompactPlayerBar, InfoMenu, MoreMenu, ShareMenu } from '@/components/modules/video-player/PlayerMenus';
+import { MediaQueuePanel } from '@/components/modules/video-player/MediaQueuePanel';
+import type {
+  CloseAnimationDirection,
+  LockableScreenOrientation,
+  PlaybackFeedback,
+  ShareTarget,
+  SurfaceSwipeDirection,
+  TapSide,
+  TouchPoint,
+  VideoPlayerFileVariant,
+  VideoPlayerProps,
+  VideoPlayerQueueItem,
+  VideoPlayerVideoInfo
+} from '@/components/modules/video-player/types';
+import {
+  clampSurfaceSwipeOffset,
+  formatDuration,
+  getCloseAnimationDistance,
+  getFullscreenOrientation,
+  getMediaArtwork,
+  getMediaTitle,
+  getNextRepeatMode,
+  getShareLinks,
+  getSurfaceFullscreenReleaseDistance,
+  getSurfaceSwipeStyle,
+  getTapSide,
+  isAudioFile,
+  isAutoplayBlockedError,
+  isInteractivePlayerTarget,
+  isLikelyMobileViewport,
+  isWebkitFullscreenVideo,
+  setMediaSessionActionHandler
+} from '@/components/modules/video-player/utils';
 
-export type VideoPlayerVideoInfo = {
-  uuid: string;
-  title?: string | null;
-  url: string;
-  thumbnail?: string | null;
-  localThumbnail?: string | null;
-  thumbnailSource?: VideoInfo['thumbnailSource'];
-  updatedAt?: number;
-  uploadDate?: string | null;
-  filename?: string | null;
-  startTime?: number;
-  playlistVideoUuid?: string;
-  size?: number;
-  type: VideoInfo['type'];
-  playlistTitle?: string | null;
-  playlist?: VideoInfo['playlist'];
-  duration?: string | number | null;
-  width?: number;
-  height?: number;
-  rFrameRate?: number;
-  codecName?: string;
-  colorPrimaries?: string;
-  containerName?: string;
-  variants?: VideoPlayerFileVariant[];
-  queueTitle?: string | null;
-  queue?: VideoPlayerQueueItem[];
-  offlineKey?: string;
-};
-
-export type VideoPlayerProps = {
-  videoInfo: VideoPlayerVideoInfo;
-  allowGalleryActions?: boolean;
-} & Pick<
-  VideoPlayerStore,
-  'isNotSupportedCodec' | 'isWideScreen' | 'isTopSticky' | 'repeatMode' | 'volume'
->;
-
-type ShareTarget = 'player' | 'source' | 'download';
-type TouchPoint = {
-  x: number;
-  y: number;
-};
-type CloseAnimationDirection = 'right' | 'down';
-type SurfaceSwipeDirection = 'up' | 'down' | null;
-type PlaybackFeedback = 'play' | 'pause' | 'rewind' | 'forward' | 'speed' | '';
-type TapSide = 'left' | 'right';
-type FullscreenOrientationLock = 'portrait' | 'landscape';
-type LockableScreenOrientation = ScreenOrientation & {
-  lock?: (orientation: FullscreenOrientationLock) => Promise<void>;
-};
-
-export type VideoPlayerFileVariant = {
-  uuid: string;
-  title?: string | null;
-  url: string;
-  thumbnail?: string | null;
-  localThumbnail?: string | null;
-  thumbnailSource?: VideoInfo['thumbnailSource'];
-  updatedAt?: number;
-  uploadDate?: string | null;
-  filename?: string | null;
-  size?: number;
-  duration?: string | number | null;
-  width?: number;
-  height?: number;
-  rFrameRate?: number;
-  codecName?: string;
-  colorPrimaries?: string;
-  containerName?: string;
-};
-
-export type VideoPlayerQueueItem = VideoPlayerFileVariant;
+export type {
+  VideoPlayerFileVariant,
+  VideoPlayerProps,
+  VideoPlayerQueueItem,
+  VideoPlayerVideoInfo
+} from '@/components/modules/video-player/types';
 
 export function VideoPlayer({
   isNotSupportedCodec,
@@ -149,6 +82,8 @@ export function VideoPlayer({
   const longPressOriginalRateRef = useRef(1);
   const isLongPressActiveRef = useRef(false);
   const suppressNextClickRef = useRef(false);
+  const shouldResumeAfterFullscreenRef = useRef(false);
+  const fullscreenExitResumeUntilRef = useRef(0);
   const originalDocumentTitleRef = useRef<string | null>(null);
   const [isPlaying, setPlaying] = useState(false);
   const [isMuted, setMuted] = useState(false);
@@ -206,9 +141,10 @@ export function VideoPlayer({
   const isAudioOnly = isAudioFile(videoInfo);
   const playerThumbnailUrl = `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}`;
   const [offlineMediaUrl, setOfflineMediaUrl] = useState('');
+  const [isResolvingOfflineMedia, setResolvingOfflineMedia] = useState(true);
   const isOfflinePlayback = Boolean(offlineMediaUrl);
-  const playbackUrl = offlineMediaUrl || videoFileUrl;
-  const cachedRanges = useMediaRangeCache(videoFileUrl, !isOfflinePlayback);
+  const playbackUrl = isResolvingOfflineMedia ? '' : offlineMediaUrl || videoFileUrl;
+  const cachedRanges = useMediaRangeCache(videoFileUrl, !isOfflinePlayback && !isResolvingOfflineMedia);
 
   useEffect(() => {
     setMounted(true);
@@ -220,13 +156,20 @@ export function VideoPlayer({
     const key = videoInfo.offlineKey || getOfflineMediaKey(videoInfo.uuid, videoInfo.playlistVideoUuid);
 
     setOfflineMediaUrl('');
+    setResolvingOfflineMedia(true);
 
     (async () => {
-      const record = await getOfflineMedia(key).catch(() => null);
-      if (!record || isCanceled) return;
+      try {
+        const record = await getOfflineMedia(key).catch(() => null);
+        if (!record || isCanceled) return;
 
-      objectUrl = createOfflineObjectUrl(record);
-      setOfflineMediaUrl(objectUrl);
+        objectUrl = createOfflineObjectUrl(record);
+        setOfflineMediaUrl(objectUrl);
+      } finally {
+        if (!isCanceled) {
+          setResolvingOfflineMedia(false);
+        }
+      }
     })();
 
     return () => {
@@ -248,7 +191,7 @@ export function VideoPlayer({
 
   useEffect(() => {
     const videoEl = videoRef.current;
-    if (!videoInfo || !videoEl) return;
+    if (!videoInfo || !videoEl || !playbackUrl) return;
 
     (async function () {
       const { currentTime, volume, setNotSupportedCodec } = useVideoPlayerStore.getState();
@@ -274,7 +217,20 @@ export function VideoPlayer({
         if (isNotSupportedCodec) setNotSupportedCodec(false);
       }, 100);
     };
-    const handlePauseVideo = () => setPlaying(false);
+    const handlePauseVideo = () => {
+      const shouldResume = shouldResumeAfterFullscreenRef.current && Date.now() < fullscreenExitResumeUntilRef.current;
+      if (shouldResume) {
+        window.setTimeout(() => {
+          const currentVideoEl = videoRef.current;
+          if (currentVideoEl?.paused) {
+            void currentVideoEl.play().catch(() => {});
+          }
+        }, 80);
+        return;
+      }
+
+      setPlaying(false);
+    };
     const handleTimeUpdate = () => {
       setLocalCurrentTime(Number(videoEl.currentTime) || 0);
       setDuration(Number(videoEl.duration) || 0);
@@ -323,7 +279,7 @@ export function VideoPlayer({
     };
     // Event listeners are intentionally rebound when the selected video or repeat mode changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoInfo, repeatMode]);
+  }, [videoInfo, repeatMode, playbackUrl]);
 
   useEffect(() => {
     const videoEl = videoRef.current;
@@ -462,6 +418,56 @@ export function VideoPlayer({
   }, [videoInfo.type, videoInfo.uuid, videoInfo.playlistVideoUuid]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleFullscreenChange = () => {
+      const isFullscreen = Boolean(document.fullscreenElement);
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+
+      if (isFullscreen) {
+        shouldResumeAfterFullscreenRef.current = !videoEl.paused;
+        return;
+      }
+
+      if (shouldResumeAfterFullscreenRef.current && videoEl.paused) {
+        void videoEl.play().catch(() => {});
+      }
+      fullscreenExitResumeUntilRef.current = Date.now() + 900;
+      window.setTimeout(() => {
+        if (shouldResumeAfterFullscreenRef.current && videoEl.paused) {
+          void videoEl.play().catch(() => {});
+        }
+        shouldResumeAfterFullscreenRef.current = false;
+      }, 160);
+    };
+
+    const handleWebkitEndFullscreen = () => {
+      const videoEl = videoRef.current;
+      fullscreenExitResumeUntilRef.current = Date.now() + 900;
+      if (shouldResumeAfterFullscreenRef.current && videoEl?.paused) {
+        void videoEl.play().catch(() => {});
+      }
+      window.setTimeout(() => {
+        const currentVideoEl = videoRef.current;
+        if (shouldResumeAfterFullscreenRef.current && currentVideoEl?.paused) {
+          void currentVideoEl.play().catch(() => {});
+        }
+        shouldResumeAfterFullscreenRef.current = false;
+      }, 160);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    const videoEl = videoRef.current;
+    videoEl?.addEventListener?.('webkitendfullscreen', handleWebkitEndFullscreen);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      videoEl?.removeEventListener?.('webkitendfullscreen', handleWebkitEndFullscreen);
+    };
+  }, [playbackUrl]);
+
+  useEffect(() => {
     return () => {
       if (clickTimeoutRef.current) {
         window.clearTimeout(clickTimeoutRef.current);
@@ -593,7 +599,7 @@ export function VideoPlayer({
 
       videoEl.volume = typeof volume === 'number' ? volume : 0.75;
       await togglePlayback();
-    }, 220);
+    }, 320);
   };
 
   const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
@@ -652,6 +658,7 @@ export function VideoPlayer({
     if (!targetEl) return;
 
     try {
+      shouldResumeAfterFullscreenRef.current = !videoRef.current?.paused;
       if (targetEl.requestFullscreen) {
         await targetEl.requestFullscreen();
       } else if (isWebkitFullscreenVideo(videoRef.current)) {
@@ -1109,7 +1116,8 @@ export function VideoPlayer({
     <div
       ref={playerSurfaceRef}
       className={cn(
-        'relative aspect-video w-full touch-none select-none overflow-hidden rounded-lg bg-black shadow-sm will-change-transform',
+        'relative aspect-video w-full shrink-0 touch-none select-none overflow-hidden rounded-lg bg-black shadow-sm will-change-transform',
+        isAudioOnly && '[@media_(orientation:landscape)_and_(max-height:540px)]:h-full [@media_(orientation:landscape)_and_(max-height:540px)]:min-h-0 [@media_(orientation:landscape)_and_(max-height:540px)]:aspect-auto',
         isSurfaceSwipeReleasing
           ? 'transition-transform duration-200 ease-out'
           : surfaceSwipeOffset && 'transition-none'
@@ -1252,49 +1260,115 @@ export function VideoPlayer({
     </div>
   );
 
-  if (isTheaterMode) {
-    return (
-      <div className='group relative flex h-full min-w-[var(--site-min-width)] flex-col items-center overflow-hidden bg-black text-white'>
-        <CompactPlayerBar
-          isTopSticky={isTopSticky}
-          isWideScreen={isWideScreen}
-          originalUrl={videoInfo.url}
-          title={videoInfo.title}
-          type={videoInfo.type}
+  const playerBar = (
+    <CompactPlayerBar
+      isTopSticky={isTopSticky}
+      isWideScreen={isWideScreen}
+      originalUrl={videoInfo.url}
+      title={videoInfo.title}
+      type={videoInfo.type}
+      variants={variantItems}
+      videoInfo={videoInfo}
+      isCapturingThumbnail={isCapturingThumbnail}
+      isRemovingThumbnail={isRemovingThumbnail}
+      onCaptureThumbnail={handleCaptureThumbnail}
+      onExternalLink={handleClickExternalLink}
+      onFullscreen={handleClickFullScreenButton}
+      onOpenVariant={handleOpenVariant}
+      onRemoveLocalThumbnail={handleRemoveLocalThumbnail}
+      onTopSticky={handleTopStickyButton}
+      onWide={handleClickWideButton}
+    />
+  );
+
+  const metaHeader = (
+    <div className='flex items-start gap-x-3'>
+      <div className='min-w-0 flex-1'>
+        <h2
+          className='line-clamp-2 text-lg font-semibold leading-6 md:text-xl'
+          title={videoInfo.title || ''}
+        >
+          {videoInfo.title || videoInfo.url}
+        </h2>
+        {videoInfo.playlistTitle && (
+          <div className='mt-1 flex items-center gap-x-1 text-sm text-muted-foreground'>
+            <ListVideo className='h-4 w-4 shrink-0' />
+            <span className='truncate'>{videoInfo.playlistTitle}</span>
+            {currentPlaylistIndex >= 0 && (
+              <span className='shrink-0'>
+                {currentPlaylistIndex + 1}/{playlistItems.length}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className='flex shrink-0 items-center gap-x-1'>
+        <ShareMenu
+          currentTime={currentTime}
+          isMounted={isMounted}
+          open={shareDialogOpen}
+          setOpen={setShareDialogOpen}
+          copiedShareTarget={copiedShareTarget}
+          onCopy={handleCopyShareLink}
+          onNativeShare={handleNativeShare}
+          setShareWithStartTime={setShareWithStartTime}
+          shareLinks={shareLinks}
+          shareWithStartTime={shareWithStartTime}
+        />
+        <InfoMenu
+          currentUuid={videoInfo.uuid}
+          isAudioOnly={isAudioOnly}
           variants={variantItems}
           videoInfo={videoInfo}
+          onOpenVariant={handleOpenVariant}
+        />
+        <MoreMenu
+          downloadUrl={downloadUrl}
+          isAudioOnly={isAudioOnly}
           isCapturingThumbnail={isCapturingThumbnail}
           isRemovingThumbnail={isRemovingThumbnail}
+          originalUrl={videoInfo.url}
           onCaptureThumbnail={handleCaptureThumbnail}
           onExternalLink={handleClickExternalLink}
-          onFullscreen={handleClickFullScreenButton}
-          onOpenVariant={handleOpenVariant}
           onRemoveLocalThumbnail={handleRemoveLocalThumbnail}
-          onTopSticky={handleTopStickyButton}
-          onWide={handleClickWideButton}
         />
-        <div className='relative flex min-h-0 w-full flex-auto items-center justify-center overflow-hidden'>
-          <div className={cn('w-full', isWideScreen ? 'h-full' : 'max-h-full')}>
-            {playerSurface}
-          </div>
-        </div>
       </div>
+    </div>
+  );
+
+  const queuePanel = (
+    <MediaQueuePanel
+      className='flex min-h-0 flex-1 flex-col md:min-h-0 md:flex-none'
+      currentUuid={videoInfo.uuid}
+      playlistItems={playlistItems}
+      queueItems={queueItems}
+      variants={variantItems}
+      videoInfo={videoInfo}
+      onOpenPlaylistVideo={playPlaylistVideo}
+      onOpenQueueVideo={playQueueVideo}
+      onOpenVariant={handleOpenVariant}
+    />
+  );
+
+  if (isTheaterMode) {
+    return (
+      <TheaterPlayerLayout
+        isWideScreen={isWideScreen}
+        playerBar={playerBar}
+        playerSurface={playerSurface}
+      />
     );
   }
 
   return (
-    <div
-      className={cn(
-        'h-full min-w-[var(--site-min-width)] overflow-y-auto bg-background text-foreground shadow-[-18px_0_40px_rgba(0,0,0,0.28)]',
-        isEdgeSwipeClosing ? 'transition-transform duration-200 ease-out' : edgeSwipeOffset > 0 && 'transition-none'
-      )}
-      style={{
-        transform: edgeSwipeOffset
-          ? closeAnimationDirection === 'down'
-            ? `translate3d(0, ${edgeSwipeOffset}px, 0)`
-            : `translate3d(${edgeSwipeOffset}px, 0, 0)`
-          : undefined
-      }}
+    <ResponsivePlayerLayout
+      closeAnimationDirection={closeAnimationDirection}
+      edgeSwipeOffset={edgeSwipeOffset}
+      isAudioOnly={isAudioOnly}
+      isEdgeSwipeClosing={isEdgeSwipeClosing}
+      metaHeader={metaHeader}
+      playerSurface={playerSurface}
+      queuePanel={queuePanel}
       onTouchStart={handleEdgeTouchStart}
       onTouchMove={handleEdgeTouchMove}
       onTouchEnd={handleEdgeTouchEnd}
@@ -1302,1150 +1376,6 @@ export function VideoPlayer({
         edgeTouchStartRef.current = null;
         setEdgeSwipeOffset(0);
       }}
-    >
-      <div className='mx-auto flex min-h-full w-full max-w-[1280px] flex-col gap-4 px-3 py-3 md:grid md:h-auto md:px-5'>
-        <main className='flex min-w-0 flex-col md:block'>
-          {playerSurface}
-          <section className='flex min-h-0 flex-1 flex-col overflow-visible pt-3 md:block'>
-            <div className='flex items-start gap-x-3'>
-              <div className='min-w-0 flex-1'>
-                <h2
-                  className='line-clamp-2 text-lg font-semibold leading-6 md:text-xl'
-                  title={videoInfo.title || ''}
-                >
-                  {videoInfo.title || videoInfo.url}
-                </h2>
-                {videoInfo.playlistTitle && (
-                  <div className='mt-1 flex items-center gap-x-1 text-sm text-muted-foreground'>
-                    <ListVideo className='h-4 w-4 shrink-0' />
-                    <span className='truncate'>{videoInfo.playlistTitle}</span>
-                    {currentPlaylistIndex >= 0 && (
-                      <span className='shrink-0'>
-                        {currentPlaylistIndex + 1}/{playlistItems.length}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className='flex shrink-0 items-center gap-x-1'>
-                <ShareMenu
-                  currentTime={currentTime}
-                  isMounted={isMounted}
-                  open={shareDialogOpen}
-                  setOpen={setShareDialogOpen}
-                  copiedShareTarget={copiedShareTarget}
-                  onCopy={handleCopyShareLink}
-                  onNativeShare={handleNativeShare}
-                  setShareWithStartTime={setShareWithStartTime}
-                  shareLinks={shareLinks}
-                  shareWithStartTime={shareWithStartTime}
-                />
-                <InfoMenu
-                  currentUuid={videoInfo.uuid}
-                  isAudioOnly={isAudioOnly}
-                  variants={variantItems}
-                  videoInfo={videoInfo}
-                  onOpenVariant={handleOpenVariant}
-                />
-                <MoreMenu
-                  downloadUrl={downloadUrl}
-                  isAudioOnly={isAudioOnly}
-                  isCapturingThumbnail={isCapturingThumbnail}
-                  isRemovingThumbnail={isRemovingThumbnail}
-                  originalUrl={videoInfo.url}
-                  onCaptureThumbnail={handleCaptureThumbnail}
-                  onExternalLink={handleClickExternalLink}
-                  onRemoveLocalThumbnail={handleRemoveLocalThumbnail}
-                />
-              </div>
-            </div>
-            <MediaQueuePanel
-              className='flex min-h-0 flex-1 flex-col md:min-h-0 md:flex-none'
-              currentUuid={videoInfo.uuid}
-              playlistItems={playlistItems}
-              queueItems={queueItems}
-              variants={variantItems}
-              videoInfo={videoInfo}
-              onOpenPlaylistVideo={playPlaylistVideo}
-              onOpenQueueVideo={playQueueVideo}
-              onOpenVariant={handleOpenVariant}
-            />
-          </section>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-type PlayerControlsProps = {
-  controlsVisible: boolean;
-  currentTime: number;
-  duration: number;
-  isMuted: boolean;
-  isPlaying: boolean;
-  progressRef: RefObject<HTMLInputElement | null>;
-  repeatMode: VideoRepeatMode;
-  volume: number;
-  canPlayAdjacent: boolean;
-  isOfflinePlayback: boolean;
-  cachedRanges: MediaCachedRange[];
-  onClose: () => void;
-  onFullscreen: () => void;
-  onMute: () => void;
-  onNext: () => void;
-  onPlayPause: () => void;
-  onPrevious: () => void;
-  onProgress: (event: ChangeEvent<HTMLInputElement>) => void;
-  onRepeat: () => void;
-  onVolume: (event: ChangeEvent<HTMLInputElement>) => void;
-};
-
-function PlayerControls({
-  controlsVisible,
-  currentTime,
-  duration,
-  isMuted,
-  isPlaying,
-  progressRef,
-  repeatMode,
-  volume,
-  canPlayAdjacent,
-  isOfflinePlayback,
-  cachedRanges,
-  onClose,
-  onFullscreen,
-  onMute,
-  onNext,
-  onPlayPause,
-  onPrevious,
-  onProgress,
-  onRepeat,
-  onVolume
-}: PlayerControlsProps) {
-  return (
-    <div
-      className={cn(
-        'pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-black/80 via-black/35 to-transparent text-white transition-opacity duration-150',
-        controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-      )}
-    >
-      <div className='pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-x-5 sm:gap-x-7'>
-        <Button
-          variant='ghost'
-          size='icon'
-          className='h-12 w-12 rounded-full bg-black/35 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 sm:h-14 sm:w-14'
-          onClick={onPrevious}
-          disabled={!canPlayAdjacent}
-          title='Previous video'
-        >
-          <SkipBack className='h-7 w-7 fill-current sm:h-8 sm:w-8' />
-        </Button>
-        <Button
-          variant='ghost'
-          size='icon'
-          className='h-16 w-16 rounded-full bg-black/45 text-white hover:bg-white/20 hover:text-white sm:h-20 sm:w-20'
-          onClick={onPlayPause}
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? (
-            <Pause className='h-8 w-8 fill-current sm:h-10 sm:w-10' />
-          ) : (
-            <Play className='ml-1 h-8 w-8 fill-current sm:h-10 sm:w-10' />
-          )}
-        </Button>
-        <Button
-          variant='ghost'
-          size='icon'
-          className='h-12 w-12 rounded-full bg-black/35 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 sm:h-14 sm:w-14'
-          onClick={onNext}
-          disabled={!canPlayAdjacent}
-          title='Next video'
-        >
-          <SkipForward className='h-7 w-7 fill-current sm:h-8 sm:w-8' />
-        </Button>
-      </div>
-
-      <div className='pointer-events-auto absolute inset-x-0 bottom-0 px-3 pb-2 pt-10'>
-        <div className='relative h-3'>
-          {isOfflinePlayback && (
-            <div className='pointer-events-none absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-emerald-400/80' />
-          )}
-          {!isOfflinePlayback &&
-            cachedRanges.map((range) => {
-              const total = range.total || duration || 0;
-              if (!total || range.end <= range.start) return null;
-
-              const left = Math.min(Math.max((range.start / total) * 100, 0), 100);
-              const width = Math.min(Math.max(((range.end - range.start + 1) / total) * 100, 0), 100 - left);
-
-              return (
-                <div
-                  key={`${range.start}-${range.end}`}
-                  className='pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-sky-400/75'
-                  style={{ left: `${left}%`, width: `${width}%` }}
-                />
-              );
-            })}
-          <input
-            ref={progressRef}
-            type='range'
-            min={0}
-            max={duration || 0}
-            step='0.1'
-            value={Math.min(currentTime, duration || currentTime)}
-            onChange={onProgress}
-            className='absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 cursor-pointer accent-red-600'
-            aria-label='Seek'
-          />
-        </div>
-        <div className='mt-2 flex min-h-9 items-center justify-between gap-x-2'>
-          <div className='flex min-w-0 items-center gap-x-2'>
-            <div className='w-[5.75rem] shrink-0 text-xs tabular-nums text-white/90 sm:w-auto'>
-              {formatDuration(currentTime)} / {formatDuration(duration)}
-            </div>
-            {(isOfflinePlayback || cachedRanges.length > 0) && (
-              <span className='hidden rounded-full bg-emerald-500/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black sm:inline-flex'>
-                {isOfflinePlayback ? 'Offline' : 'Cached'}
-              </span>
-            )}
-          </div>
-          <div className='flex shrink-0 items-center gap-x-1.5'>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='relative h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-              onClick={onRepeat}
-              title={getRepeatTitle(repeatMode)}
-            >
-              <Repeat className='h-5 w-5' />
-              {repeatMode !== 'none' && (
-                <span className='absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-white px-0.5 text-[9px] font-bold leading-none text-black'>
-                  {repeatMode === 'one' ? '1' : 'A'}
-                </span>
-              )}
-            </Button>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-              onClick={onMute}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? <VolumeX className='h-5 w-5' /> : <Volume2 className='h-5 w-5' />}
-            </Button>
-            <input
-              type='range'
-              min={0}
-              max={100}
-              value={isMuted ? 0 : Math.round((volume || 0) * 100)}
-              onChange={onVolume}
-              className='hidden h-1 w-20 cursor-pointer accent-white sm:block'
-              aria-label='Volume'
-            />
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-              onClick={onFullscreen}
-              title='Full screen'
-            >
-              <Maximize2 className='h-5 w-5' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
-              onClick={onClose}
-              title='Close'
-            >
-              <X className='h-5 w-5' />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type CompactPlayerBarProps = {
-  isTopSticky: boolean;
-  isWideScreen: boolean;
-  isCapturingThumbnail: boolean;
-  isRemovingThumbnail: boolean;
-  originalUrl: string;
-  title?: string | null;
-  type: VideoInfo['type'];
-  variants: VideoPlayerFileVariant[];
-  videoInfo: VideoPlayerVideoInfo;
-  onCaptureThumbnail: () => void;
-  onExternalLink: () => void;
-  onFullscreen: () => void;
-  onOpenVariant: (variant: VideoPlayerFileVariant) => void;
-  onRemoveLocalThumbnail: () => void;
-  onTopSticky: () => void;
-  onWide: () => void;
-};
-
-function CompactPlayerBar({
-  isCapturingThumbnail,
-  isRemovingThumbnail,
-  isTopSticky,
-  isWideScreen,
-  originalUrl,
-  title,
-  type,
-  variants,
-  videoInfo,
-  onCaptureThumbnail,
-  onExternalLink,
-  onFullscreen,
-  onOpenVariant,
-  onRemoveLocalThumbnail,
-  onTopSticky,
-  onWide
-}: CompactPlayerBarProps) {
-  const isAudioOnly = isAudioFile(videoInfo);
-
-  return (
-    <div
-      className={cn(
-        'absolute left-0 top-0 z-10 flex w-full min-h-14 items-center justify-between bg-black/35 p-2 text-white transition-opacity duration-500',
-        isTopSticky && 'opacity-0 group-hover:opacity-100'
-      )}
-    >
-      <div className='line-clamp-2 min-w-0 pl-2 font-bold' title={title || ''}>
-        {title}
-      </div>
-      <div className='flex shrink-0 gap-x-1 whitespace-nowrap'>
-        <InfoMenu
-          currentUuid={videoInfo.uuid}
-          isAudioOnly={isAudioOnly}
-          variants={variants}
-          videoInfo={videoInfo}
-          onOpenVariant={onOpenVariant}
-        />
-        <MoreMenu
-          isAudioOnly={isAudioOnly}
-          isCapturingThumbnail={isCapturingThumbnail}
-          isRemovingThumbnail={isRemovingThumbnail}
-          originalUrl={originalUrl}
-          onCaptureThumbnail={onCaptureThumbnail}
-          onExternalLink={onExternalLink}
-          onRemoveLocalThumbnail={onRemoveLocalThumbnail}
-        />
-        {type === 'video' && (
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-8 w-8 shrink-0 rounded-full text-white hover:bg-white/15 hover:text-white'
-            onClick={onTopSticky}
-            title={isTopSticky ? 'Not fixing on top' : 'Fixing on top'}
-          >
-            {isTopSticky ? <PinOff className='h-4 w-4' /> : <Pin className='h-4 w-4' />}
-          </Button>
-        )}
-        <Button
-          variant='ghost'
-          size='icon'
-          className='h-8 w-8 shrink-0 rounded-full text-xl text-white hover:bg-white/15 hover:text-white'
-          onClick={onWide}
-          title={isWideScreen ? 'Exit wide view' : 'Wide view'}
-        >
-          {isWideScreen ? <TbViewportNarrow /> : <TbViewportWide />}
-        </Button>
-        <Button
-          variant='ghost'
-          size='icon'
-          className='h-8 w-8 shrink-0 rounded-full text-white hover:bg-white/15 hover:text-white'
-          onClick={onFullscreen}
-          title='Full screen'
-        >
-          <Maximize2 className='h-4 w-4' />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-type ShareMenuProps = {
-  copiedShareTarget: ShareTarget | '';
-  currentTime: number;
-  isMounted: boolean;
-  open: boolean;
-  setOpen: (open: boolean) => void;
-  shareLinks: Record<ShareTarget, string>;
-  onCopy: (target: ShareTarget) => () => void;
-  onNativeShare: () => void;
-  setShareWithStartTime: (checked: boolean) => void;
-  shareWithStartTime: boolean;
-};
-
-function MediaQueuePanel({
-  className,
-  currentUuid,
-  playlistItems,
-  queueItems,
-  variants,
-  videoInfo,
-  onOpenPlaylistVideo,
-  onOpenQueueVideo,
-  onOpenVariant
-}: {
-  currentUuid: string;
-  playlistItems: VideoInfo['playlist'];
-  queueItems: VideoPlayerQueueItem[];
-  variants: VideoPlayerFileVariant[];
-  videoInfo: VideoPlayerVideoInfo;
-  onOpenPlaylistVideo: (playlistVideo?: VideoInfo['playlist'][number]) => void;
-  onOpenQueueVideo: (queueVideo?: VideoPlayerQueueItem) => void;
-  onOpenVariant: (variant: VideoPlayerFileVariant) => void;
-  className?: string;
-}) {
-  if (queueItems.length > 0) {
-    return (
-      <section className={cn('mt-4 overflow-hidden rounded-lg border bg-card md:block', className)}>
-        <div className='border-b p-3'>
-          <div className='flex items-center gap-x-2 font-semibold'>
-            <ListVideo className='h-4 w-4' />
-            <span className='min-w-0 flex-1 truncate'>{videoInfo.queueTitle || 'Playlist'}</span>
-          </div>
-          <div className='mt-1 text-xs text-muted-foreground'>{queueItems.length} videos</div>
-        </div>
-        <div className='min-h-0 flex-1 divide-y overflow-y-auto md:block md:max-h-80'>
-          {queueItems.map((item, index) => {
-            const isCurrent = item.uuid === currentUuid;
-
-            return (
-              <button
-                key={`${item.uuid}-${index}`}
-                type='button'
-                className={cn(
-                  'flex w-full gap-x-3 p-3 text-left transition-colors',
-                  isCurrent ? 'cursor-default bg-primary/10 text-primary' : 'hover:bg-accent'
-                )}
-                disabled={isCurrent}
-                onClick={() => onOpenQueueVideo(item)}
-              >
-                <div className='relative aspect-video w-32 shrink-0 overflow-hidden rounded-md bg-black/80'>
-                  <QueueThumbnail item={item} />
-                  {item.duration && (
-                    <span className='absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-xs text-white'>
-                      {formatDuration(item.duration)}
-                    </span>
-                  )}
-                </div>
-                <div className='min-w-0 flex-1'>
-                  <div className='line-clamp-2 font-medium'>{item.title || item.filename || 'Untitled'}</div>
-                  <div className='mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground'>
-                    <span>#{index + 1}</span>
-                    <span>{formatQualityLabel(item) || 'Unknown quality'}</span>
-                    {item.codecName && <span>{item.codecName}</span>}
-                    {formatBytes(item.size) && <span>{formatBytes(item.size)}</span>}
-                    {getFileExtension(item.filename || '') && (
-                      <span>{getFileExtension(item.filename || '')}</span>
-                    )}
-                  </div>
-                  {formatUploadDate(item.uploadDate) && (
-                    <div className='mt-1 text-xs text-muted-foreground'>
-                      {formatUploadDate(item.uploadDate)}
-                    </div>
-                  )}
-                </div>
-                {isCurrent && (
-                  <span className='self-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
-                    Playing
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-    );
-  }
-
-  if (playlistItems.length > 0) {
-    return (
-      <section className={cn('mt-4 overflow-hidden rounded-lg border bg-card md:block', className)}>
-        <div className='border-b p-3'>
-          <div className='flex items-center gap-x-2 font-semibold'>
-            <ListVideo className='h-4 w-4' />
-            <span className='min-w-0 flex-1 truncate'>{videoInfo.playlistTitle || 'Playlist'}</span>
-          </div>
-          <div className='mt-1 text-xs text-muted-foreground'>{playlistItems.length} videos</div>
-        </div>
-        <div className='min-h-0 flex-1 overflow-y-auto p-2 md:block md:max-h-80'>
-          {playlistItems.map((item, index) => {
-            const isCurrent = item?.uuid === videoInfo.playlistVideoUuid;
-            const isPlayable = Boolean(item?.uuid && item.path && !item.error && !item.isLive);
-
-            return (
-              <button
-                key={item?.uuid || index}
-                className={cn(
-                  'grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] gap-x-2 rounded-md p-2 text-left text-sm transition-colors',
-                  isCurrent ? 'bg-primary/10 text-primary' : 'hover:bg-accent',
-                  !isPlayable && 'cursor-default opacity-60 hover:bg-transparent'
-                )}
-                disabled={!isPlayable}
-                onClick={() => onOpenPlaylistVideo(item)}
-                title={item?.name || item?.error || ''}
-              >
-                <span className='text-center text-xs font-semibold leading-5'>{index + 1}</span>
-                <span className='min-w-0'>
-                  <span className='line-clamp-2 font-medium leading-5'>
-                    {item?.error || (item?.isLive ? 'Live has been excluded.' : item?.name || 'No Data')}
-                  </span>
-                </span>
-                {item?.duration && (
-                  <span className='text-xs text-muted-foreground'>{formatDuration(item.duration)}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-    );
-  }
-
-  const displayedVariants = variants.length
-    ? variants
-    : [
-        {
-          uuid: videoInfo.uuid,
-          title: videoInfo.title,
-          url: videoInfo.url,
-          filename: videoInfo.filename,
-          size: videoInfo.size,
-          duration: videoInfo.duration,
-          thumbnail: videoInfo.thumbnail,
-          localThumbnail: videoInfo.localThumbnail,
-          thumbnailSource: videoInfo.thumbnailSource,
-          updatedAt: videoInfo.updatedAt,
-          width: videoInfo.width,
-          height: videoInfo.height,
-          rFrameRate: videoInfo.rFrameRate,
-          codecName: videoInfo.codecName,
-          colorPrimaries: videoInfo.colorPrimaries,
-          containerName: videoInfo.containerName
-        }
-      ];
-
-  return (
-    <section className={cn('mt-4 overflow-hidden rounded-lg border bg-card md:block', className)}>
-      <div className='border-b p-3'>
-        <div className='font-semibold'>Files</div>
-      </div>
-      <div className='min-h-0 flex-1 divide-y overflow-y-auto md:block md:max-h-80'>
-        {displayedVariants.map((variant, index) => {
-          const isCurrent = variant.uuid === currentUuid;
-
-          return (
-            <button
-              key={variant.uuid}
-              type='button'
-              className={cn(
-                'flex w-full gap-x-3 p-3 text-left transition-colors',
-                isCurrent ? 'cursor-default bg-primary/10 text-primary' : 'hover:bg-accent'
-              )}
-              disabled={isCurrent}
-              onClick={() => onOpenVariant(variant)}
-            >
-              <div className='relative aspect-video w-32 shrink-0 overflow-hidden rounded-md bg-black/80'>
-                <QueueThumbnail item={variant} />
-                {isAudioFile(variant) && (
-                  <span className='absolute left-1 top-1 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white'>
-                    Audio
-                  </span>
-                )}
-                {variant.duration && (
-                  <span className='absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-xs text-white'>
-                    {formatDuration(variant.duration)}
-                  </span>
-                )}
-              </div>
-              <div className='min-w-0 flex-1'>
-                <div className='line-clamp-2 font-medium'>{variant.title || variant.filename || 'Untitled'}</div>
-                <div className='mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground'>
-                  <span>#{index + 1}</span>
-                  <span>{formatQualityLabel(variant) || (isAudioFile(variant) ? 'Audio' : 'Unknown quality')}</span>
-                  {variant.codecName && <span>{variant.codecName}</span>}
-                  {formatBytes(variant.size) && <span>{formatBytes(variant.size)}</span>}
-                  {getFileExtension(variant.filename || '') && (
-                    <span>{getFileExtension(variant.filename || '')}</span>
-                  )}
-                </div>
-                {formatUploadDate(variant.uploadDate) && (
-                  <div className='mt-1 text-xs text-muted-foreground'>
-                    {formatUploadDate(variant.uploadDate)}
-                  </div>
-                )}
-              </div>
-              {isCurrent && (
-                <span className='self-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
-                  Playing
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function QueueThumbnail({ item }: { item: Pick<VideoPlayerFileVariant, 'thumbnail' | 'updatedAt' | 'uuid'> }) {
-  const sources = useMemo(() => {
-    const localUrl = `/api/thumbnail?uuid=${encodeURIComponent(item.uuid)}${
-      item.updatedAt ? `&v=${item.updatedAt}` : ''
-    }`;
-    const remoteUrl = item.thumbnail || '';
-    const proxyUrl = remoteUrl ? `/api/image?url=${encodeURIComponent(remoteUrl)}` : '';
-
-    return [localUrl, remoteUrl, proxyUrl].filter(Boolean);
-  }, [item.thumbnail, item.updatedAt, item.uuid]);
-  const [sourceIndex, setSourceIndex] = useState(0);
-
-  useEffect(() => {
-    setSourceIndex(0);
-  }, [sources]);
-
-  const src = sources[sourceIndex] || '';
-
-  if (!src) {
-    return (
-      <div className='flex h-full w-full items-center justify-center bg-black text-white/35'>
-        <Music2 className='h-8 w-8' />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt=''
-      className='h-full w-full object-cover'
-      loading='lazy'
-      onError={() => setSourceIndex((index) => Math.min(index + 1, sources.length))}
     />
   );
-}
-
-function ShareMenu({
-  copiedShareTarget,
-  currentTime,
-  isMounted,
-  open,
-  onCopy,
-  onNativeShare,
-  setOpen,
-  setShareWithStartTime,
-  shareLinks,
-  shareWithStartTime
-}: ShareMenuProps) {
-  const canNativeShare = isMounted && Boolean(navigator.share);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        variant='secondary'
-        size='icon'
-        className='h-9 w-9 rounded-full'
-        title='Share'
-        onClick={() => setOpen(true)}
-      >
-        <Share2 className='h-4 w-4' />
-      </Button>
-      <DialogContent className='max-w-xl'>
-        <DialogTitle>Share</DialogTitle>
-        <div className='space-y-4'>
-          <div className='flex gap-x-2'>
-            <Input value={shareLinks.player} readOnly className='h-9 font-mono text-xs' />
-            <Button className='h-9 shrink-0 gap-x-1.5' onClick={onCopy('player')}>
-              {copiedShareTarget === 'player' ? (
-                <Check className='h-4 w-4' />
-              ) : (
-                <Copy className='h-4 w-4' />
-              )}
-              {copiedShareTarget === 'player' ? 'Copied' : 'Copy'}
-            </Button>
-          </div>
-          <label className='flex cursor-pointer items-center gap-x-2 text-sm'>
-            <Checkbox
-              checked={shareWithStartTime}
-              onCheckedChange={(checked) => setShareWithStartTime(checked === true)}
-            />
-            <span>Start at {formatDuration(currentTime)}</span>
-          </label>
-          <div className='grid gap-2 border-t pt-4 sm:grid-cols-3'>
-            {canNativeShare && (
-              <Button variant='secondary' className='gap-x-1.5' onClick={onNativeShare}>
-                <Share2 className='h-4 w-4' />
-                System
-              </Button>
-            )}
-            <Button variant='secondary' className='gap-x-1.5' onClick={onCopy('source')}>
-              {copiedShareTarget === 'source' ? (
-                <Check className='h-4 w-4' />
-              ) : (
-                <ExternalLink className='h-4 w-4' />
-              )}
-              Source
-            </Button>
-            <Button variant='secondary' className='gap-x-1.5' onClick={onCopy('download')}>
-              {copiedShareTarget === 'download' ? (
-                <Check className='h-4 w-4' />
-              ) : (
-                <FileDown className='h-4 w-4' />
-              )}
-              Download
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function InfoMenu({
-  currentUuid,
-  isAudioOnly,
-  variants,
-  videoInfo,
-  onOpenVariant
-}: {
-  currentUuid: string;
-  isAudioOnly: boolean;
-  variants: VideoPlayerFileVariant[];
-  videoInfo: VideoPlayerVideoInfo;
-  onOpenVariant: (variant: VideoPlayerFileVariant) => void;
-}) {
-  const displayedVariants = variants.length
-    ? variants
-    : [
-        {
-          uuid: videoInfo.uuid,
-          title: videoInfo.title,
-          url: videoInfo.url,
-          filename: videoInfo.filename,
-          size: videoInfo.size,
-          duration: videoInfo.duration,
-          width: videoInfo.width,
-          height: videoInfo.height,
-          rFrameRate: videoInfo.rFrameRate,
-          codecName: videoInfo.codecName,
-          colorPrimaries: videoInfo.colorPrimaries,
-          containerName: videoInfo.containerName
-        }
-      ];
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant='secondary'
-          size='icon'
-          className='h-9 w-9 rounded-full'
-          title={isAudioOnly ? 'Audio info' : 'Video info'}
-        >
-          <Info className='h-4 w-4' />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-80'>
-        <DropdownMenuLabel>Now playing</DropdownMenuLabel>
-        <div className='space-y-1 px-2 pb-2 text-sm'>
-          <InfoRow label={isAudioOnly ? 'Type' : 'Quality'} value={formatQualityLabel(videoInfo) || 'Audio'} />
-          <InfoRow label='Codec' value={videoInfo.codecName || ''} />
-          <InfoRow label='Size' value={formatBytes(videoInfo.size)} />
-          <InfoRow label='Ext' value={getFileExtension(videoInfo.filename || '')} />
-        </div>
-        {displayedVariants.length > 1 && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Same source files</DropdownMenuLabel>
-            <div className='max-h-72 overflow-y-auto px-1 pb-1'>
-              {displayedVariants.map((variant) => {
-                const isCurrent = variant.uuid === currentUuid;
-
-                return (
-                  <div
-                    key={variant.uuid}
-                    className={cn(
-                      'mb-1 rounded-md px-2 py-2 text-sm',
-                      isCurrent ? 'bg-primary/10 text-primary' : 'bg-muted/40'
-                    )}
-                  >
-                    <div className='line-clamp-1 font-medium' title={variant.filename || variant.title || ''}>
-                      {variant.filename || variant.title || 'Untitled'}
-                    </div>
-                    <div className='mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground'>
-                      <span>{formatQualityLabel(variant) || (isAudioFile(variant) ? 'Audio' : 'Unknown quality')}</span>
-                      {variant.codecName && <span>{variant.codecName}</span>}
-                      {formatBytes(variant.size) && <span>{formatBytes(variant.size)}</span>}
-                      {getFileExtension(variant.filename || '') && (
-                        <span>{getFileExtension(variant.filename || '')}</span>
-                      )}
-                    </div>
-                    <div className='mt-2 flex justify-end'>
-                      <Button
-                        size='sm'
-                        variant={isCurrent ? 'secondary' : 'default'}
-                        className='h-7 rounded-full px-3'
-                        disabled={isCurrent}
-                        onClick={() => onOpenVariant(variant)}
-                      >
-                        {isCurrent ? 'Playing' : 'Open'}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='flex items-center justify-between gap-x-3'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='truncate text-right font-medium'>{value || '-'}</span>
-    </div>
-  );
-}
-
-function MoreMenu({
-  downloadUrl,
-  isAudioOnly,
-  isCapturingThumbnail,
-  isRemovingThumbnail,
-  originalUrl,
-  onCaptureThumbnail,
-  onExternalLink,
-  onRemoveLocalThumbnail
-}: {
-  downloadUrl?: string;
-  isAudioOnly: boolean;
-  isCapturingThumbnail: boolean;
-  isRemovingThumbnail: boolean;
-  originalUrl: string;
-  onCaptureThumbnail: () => void;
-  onExternalLink: () => void;
-  onRemoveLocalThumbnail: () => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant='secondary' size='icon' className='h-9 w-9 rounded-full' title='More'>
-          <MoreVertical className='h-4 w-4' />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-52'>
-        {!isAudioOnly && (
-          <DropdownMenuItem disabled={isCapturingThumbnail} onClick={onCaptureThumbnail}>
-            <Camera className='mr-2 h-4 w-4' />
-            {isCapturingThumbnail ? 'Saving thumbnail...' : 'Use current frame for thumbnail'}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem disabled={isRemovingThumbnail} onClick={onRemoveLocalThumbnail}>
-          <X className='mr-2 h-4 w-4' />
-          {isRemovingThumbnail ? 'Removing thumbnail...' : 'Remove local thumbnail'}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <a href={originalUrl || ''} rel='noopener noreferrer' target='_blank' onClick={onExternalLink}>
-            <ExternalLink className='mr-2 h-4 w-4' />
-            Open source
-          </a>
-        </DropdownMenuItem>
-        {downloadUrl && (
-          <DropdownMenuItem asChild>
-            <a href={downloadUrl} rel='noopener noreferrer' target='_blank' download>
-              <Download className='mr-2 h-4 w-4' />
-              Download file
-            </a>
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function clampSurfaceSwipeOffset(deltaY: number) {
-  const maxDown = typeof window !== 'undefined' ? Math.min(window.innerHeight * 0.42, 320) : 240;
-  const maxUp = typeof window !== 'undefined' ? Math.min(window.innerHeight * 0.22, 170) : 140;
-
-  return Math.min(Math.max(deltaY, -maxUp), maxDown);
-}
-
-function getSurfaceSwipeStyle(offset: number): CSSProperties | undefined {
-  if (!offset) return undefined;
-
-  if (offset > 0) {
-    const progress = Math.min(offset / 220, 1);
-    const scale = 1 - progress * 0.14;
-
-    return {
-      transform: `translate3d(0, ${offset}px, 0) scale(${scale})`,
-      transformOrigin: 'center top',
-      zIndex: 30
-    };
-  }
-
-  const pull = Math.abs(offset);
-  const progress = Math.min(pull / 150, 1);
-  const scale = 1 + progress * 0.08;
-  const translateY = -Math.min(pull * 0.42, 72);
-
-  return {
-    transform: `translate3d(0, ${translateY}px, 0) scale(${scale})`,
-    transformOrigin: 'center top',
-    zIndex: 30
-  };
-}
-
-function getCloseAnimationDistance(direction: CloseAnimationDirection) {
-  if (typeof window === 'undefined') return 480;
-
-  return direction === 'down' ? window.innerHeight : window.innerWidth;
-}
-
-function getSurfaceFullscreenReleaseDistance() {
-  if (typeof window === 'undefined') return 160;
-
-  return Math.min(window.innerHeight * 0.24, 190);
-}
-
-function getTapSide(event: MouseEvent<HTMLElement>): TapSide {
-  const rect = event.currentTarget.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-
-  return x < rect.width / 2 ? 'left' : 'right';
-}
-
-function isInteractivePlayerTarget(target: EventTarget) {
-  if (!(target instanceof Element)) return false;
-  if (target.closest('[data-player-tap-zone="true"]')) return false;
-
-  return Boolean(target.closest('button, input, a, [role="button"]'));
-}
-
-function isLikelyMobileViewport() {
-  if (typeof window === 'undefined') return false;
-
-  const canHover = window.matchMedia('(hover: hover)').matches;
-  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-  const shortSide = Math.min(window.innerWidth, window.innerHeight);
-  const longSide = Math.max(window.innerWidth, window.innerHeight);
-
-  return hasCoarsePointer && !canHover && shortSide <= 540 && longSide <= 1000;
-}
-
-function getMediaTitle(videoInfo: VideoPlayerVideoInfo) {
-  return videoInfo.title || videoInfo.filename || videoInfo.url || 'yt-dlp-web';
-}
-
-function getMediaArtwork(videoInfo: VideoPlayerVideoInfo, origin: string): MediaImage[] {
-  const localThumbnailUrl = toAbsoluteUrl(
-    `/api/thumbnail?uuid=${encodeURIComponent(videoInfo.uuid)}${
-      videoInfo.updatedAt ? `&v=${videoInfo.updatedAt}` : ''
-    }`,
-    origin
-  );
-  const remoteThumbnailUrl = toAbsoluteUrl(videoInfo.thumbnail || '', origin);
-  const proxiedRemoteThumbnailUrl = videoInfo.thumbnail
-    ? toAbsoluteUrl(`/api/image?url=${encodeURIComponent(videoInfo.thumbnail)}`, origin)
-    : '';
-
-  return [
-    createMediaImage(localThumbnailUrl),
-    createMediaImage(remoteThumbnailUrl),
-    createMediaImage(proxiedRemoteThumbnailUrl)
-  ].filter(Boolean) as MediaImage[];
-}
-
-function createMediaImage(src: string): MediaImage | null {
-  if (!src) return null;
-
-  return {
-    src,
-    sizes: '512x512'
-  };
-}
-
-function toAbsoluteUrl(url: string, origin: string) {
-  if (!url) return '';
-
-  try {
-    return new URL(url, origin).toString();
-  } catch (e) {
-    return '';
-  }
-}
-
-function setMediaSessionActionHandler(
-  action: MediaSessionAction,
-  handler: MediaSessionActionHandler | null
-) {
-  try {
-    navigator.mediaSession.setActionHandler(action, handler);
-  } catch (e) {}
-}
-
-function getShareLinks(
-  videoInfo: VideoPlayerVideoInfo,
-  downloadUrl: string,
-  isMounted: boolean,
-  startTime: number
-) {
-  const origin = isMounted && typeof window !== 'undefined' ? window.location.origin : '';
-  const watchUrl = new URL('/watch', origin || 'http://localhost');
-  watchUrl.searchParams.set('uuid', videoInfo.uuid);
-  if (videoInfo.playlistVideoUuid) {
-    watchUrl.searchParams.set('itemUuid', videoInfo.playlistVideoUuid);
-  }
-  watchUrl.searchParams.set('share', '1');
-  if (startTime > 0) {
-    watchUrl.searchParams.set('t', `${Math.floor(startTime)}`);
-  }
-
-  return {
-    player: origin ? watchUrl.toString() : `/watch?${watchUrl.searchParams.toString()}`,
-    source: videoInfo.url || '',
-    download: `${origin}${downloadUrl}`
-  };
-}
-
-function getNextRepeatMode(currentMode: VideoRepeatMode, hasPlaylistRepeat: boolean): VideoRepeatMode {
-  if (currentMode === 'none') return 'one';
-  if (currentMode === 'one') return hasPlaylistRepeat ? 'all' : 'none';
-  return 'none';
-}
-
-function getRepeatTitle(repeatMode: VideoRepeatMode) {
-  if (repeatMode === 'one') return 'Repeat one';
-  if (repeatMode === 'all') return 'Repeat playlist';
-  return 'Repeat off';
-}
-
-function formatQualityLabel(video?: Partial<VideoPlayerVideoInfo | VideoPlayerFileVariant>) {
-  if (!video) return '';
-
-  const parts: string[] = [];
-  if (typeof video.height === 'number' && video.height > 0) {
-    const fps =
-      typeof video.rFrameRate === 'number' && video.rFrameRate > 0
-        ? `${Math.round(video.rFrameRate)}`
-        : '';
-    parts.push(`${video.height}p${fps}`);
-  }
-  if (video.colorPrimaries === 'bt2020') {
-    parts.push('HDR');
-  }
-
-  return parts.join(' ');
-}
-
-function isAudioFile(video?: Partial<VideoPlayerVideoInfo | VideoPlayerFileVariant>) {
-  if (!video) return false;
-
-  const extension = getFileExtension(video.filename || '').toLowerCase();
-  if (['aac', 'aiff', 'alac', 'flac', 'm4a', 'mka', 'mp3', 'ogg', 'opus', 'wav', 'weba'].includes(extension)) {
-    return true;
-  }
-
-  return typeof video.height !== 'number' || video.height <= 0;
-}
-
-function getFullscreenOrientation(
-  videoEl: HTMLMediaElement | null,
-  videoInfo: VideoPlayerVideoInfo
-): FullscreenOrientationLock {
-  if (videoEl instanceof HTMLVideoElement && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
-    return videoEl.videoHeight > videoEl.videoWidth ? 'portrait' : 'landscape';
-  }
-
-  if (
-    typeof videoInfo.width === 'number' &&
-    videoInfo.width > 0 &&
-    typeof videoInfo.height === 'number' &&
-    videoInfo.height > 0
-  ) {
-    return videoInfo.height > videoInfo.width ? 'portrait' : 'landscape';
-  }
-
-  return isAudioFile(videoInfo) ? 'portrait' : 'landscape';
-}
-
-function isWebkitFullscreenVideo(
-  videoEl: HTMLMediaElement | null
-): videoEl is HTMLMediaElement & { webkitEnterFullscreen: () => void } {
-  return Boolean(
-    videoEl &&
-      'webkitEnterFullscreen' in videoEl &&
-      typeof (videoEl as { webkitEnterFullscreen?: unknown }).webkitEnterFullscreen === 'function'
-  );
-}
-
-function isAutoplayBlockedError(error: unknown) {
-  return error instanceof DOMException && error.name === 'NotAllowedError';
-}
-
-function formatBytes(size?: number) {
-  if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) return '';
-
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = size;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function getFileExtension(filename: string) {
-  const basename = filename.split(/[\\/]/).pop() || '';
-  const index = basename.lastIndexOf('.');
-  if (index < 0 || index === basename.length - 1) return '';
-
-  return basename.slice(index + 1).toUpperCase();
-}
-
-function formatUploadDate(uploadDate?: string | null) {
-  if (!uploadDate) return '';
-
-  if (/^\d{8}$/.test(uploadDate)) {
-    return `${uploadDate.slice(0, 4)}.${uploadDate.slice(4, 6)}.${uploadDate.slice(6, 8)}`;
-  }
-
-  const parsedDate = new Date(uploadDate);
-  if (Number.isNaN(parsedDate.getTime())) return '';
-
-  return [
-    parsedDate.getFullYear(),
-    String(parsedDate.getMonth() + 1).padStart(2, '0'),
-    String(parsedDate.getDate()).padStart(2, '0')
-  ].join('.');
-}
-
-function formatDuration(duration?: string | number | null) {
-  const seconds = Number(duration);
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return '00:00';
-  }
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const restSeconds = Math.floor(seconds % 60);
-
-  if (hours > 0) {
-    return [hours, minutes, restSeconds].map((value) => String(value).padStart(2, '0')).join(':');
-  }
-
-  return [minutes, restSeconds].map((value) => String(value).padStart(2, '0')).join(':');
 }

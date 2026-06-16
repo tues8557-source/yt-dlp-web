@@ -36,7 +36,7 @@ import { PlaylistViewer } from './PlaylistViewer';
 import { DownloadOptionsInfoDialog } from './DownloadOptionsInfoDialog';
 import type { UserPlaylists } from '@/types/userPlaylist';
 import type { GetVideoList } from '@/server/yt-dlp-web';
-import type { VideoPlayerFileVariant, VideoPlayerQueueItem } from '@/components/modules/VideoPlayer';
+import type { VideoPlayerFileVariant, VideoPlayerQueueItem } from '@/components/modules/video-player/types';
 import { useOfflineMedia } from '@/client/useOfflineMedia';
 import { useMediaRangeCache } from '@/client/mediaRangeCache';
 
