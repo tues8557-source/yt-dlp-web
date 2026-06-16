@@ -61,8 +61,9 @@ export type {
   VideoPlayerVideoInfo
 } from '@/components/modules/video-player/types';
 
-const SINGLE_TAP_DELAY_MS = 520;
+const SINGLE_TAP_DELAY_MS = 650;
 const CONTROLS_AUTO_HIDE_MS = 5000;
+const TOUCH_CLICK_SUPPRESS_MS = 1200;
 
 export function VideoPlayer({
   isNotSupportedCodec,
@@ -604,7 +605,7 @@ export function VideoPlayer({
 
     const now = Date.now();
     const lastTap = lastTapRef.current;
-    if (lastTap && lastTap.side === side && now - lastTap.time < SINGLE_TAP_DELAY_MS) {
+    if (lastTap && now - lastTap.time < SINGLE_TAP_DELAY_MS) {
       clearPendingSingleTap();
       lastTapRef.current = null;
       suppressControlsUntilRef.current = now + 500;
@@ -645,7 +646,7 @@ export function VideoPlayer({
   };
 
   const handlePlayerPointerTap = async (side: TapSide) => {
-    suppressClickUntilRef.current = Date.now() + 450;
+    suppressClickUntilRef.current = Date.now() + TOUCH_CLICK_SUPPRESS_MS;
     await handlePlayerTap(side);
   };
 
