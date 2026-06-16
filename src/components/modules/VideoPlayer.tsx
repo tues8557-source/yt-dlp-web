@@ -61,6 +61,8 @@ export type {
   VideoPlayerVideoInfo
 } from '@/components/modules/video-player/types';
 
+const SINGLE_TAP_DELAY_MS = 340;
+
 export function VideoPlayer({
   isNotSupportedCodec,
   isTopSticky: _isTopSticky,
@@ -601,7 +603,7 @@ export function VideoPlayer({
 
     const now = Date.now();
     const lastTap = lastTapRef.current;
-    if (lastTap && lastTap.side === side && now - lastTap.time < 280) {
+    if (lastTap && lastTap.side === side && now - lastTap.time < SINGLE_TAP_DELAY_MS) {
       clearPendingSingleTap();
       lastTapRef.current = null;
       suppressControlsUntilRef.current = now + 500;
@@ -614,8 +616,12 @@ export function VideoPlayer({
     clickTimeoutRef.current = window.setTimeout(async () => {
       clickTimeoutRef.current = null;
       lastTapRef.current = null;
-      handleShowControls();
-    }, 320);
+      if (controlsVisibleRef.current) {
+        handleHideControls();
+      } else {
+        handleShowControls();
+      }
+    }, SINGLE_TAP_DELAY_MS);
   };
 
   const handleClickVideo = async (event: MouseEvent<HTMLElement>) => {
@@ -1311,6 +1317,7 @@ export function VideoPlayer({
         onPrevious={playPreviousQueuedVideo}
         onProgress={handleProgressChange}
         onRepeat={handleClickRepeatButton}
+        onControlsBackgroundTap={handleHideControls}
         onVolume={handleVolumeChange}
         canPlayAdjacent={hasRepeatQueue}
         isOfflinePlayback={isOfflinePlayback}

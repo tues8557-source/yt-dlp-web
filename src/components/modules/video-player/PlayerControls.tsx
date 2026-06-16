@@ -1,6 +1,6 @@
 'use client';
 
-import type { ChangeEvent, RefObject } from 'react';
+import type { ChangeEvent, MouseEvent, RefObject } from 'react';
 import { Maximize2, Pause, Play, Repeat, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 
 import type { MediaCachedRange } from '@/client/mediaRangeCache';
@@ -23,6 +23,7 @@ type PlayerControlsProps = {
   isOfflinePlayback: boolean;
   cachedRanges: MediaCachedRange[];
   onClose: () => void;
+  onControlsBackgroundTap: () => void;
   onFullscreen: () => void;
   onMute: () => void;
   onNext: () => void;
@@ -46,6 +47,7 @@ export function PlayerControls({
   isOfflinePlayback,
   cachedRanges,
   onClose,
+  onControlsBackgroundTap,
   onFullscreen,
   onMute,
   onNext,
@@ -55,6 +57,13 @@ export function PlayerControls({
   onRepeat,
   onVolume
 }: PlayerControlsProps) {
+  const handleControlsBackgroundClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('button, input, a, [role="button"]')) return;
+
+    onControlsBackgroundTap();
+  };
+
   return (
     <div
       className={cn(
@@ -62,7 +71,10 @@ export function PlayerControls({
         controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
       )}
     >
-      <div className='pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-x-5 sm:gap-x-7'>
+      <div
+        className='pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-x-5 sm:gap-x-7'
+        onClick={handleControlsBackgroundClick}
+      >
         <Button
           variant='ghost'
           size='icon'
@@ -98,7 +110,10 @@ export function PlayerControls({
         </Button>
       </div>
 
-      <div className='pointer-events-auto absolute inset-x-0 bottom-0 px-3 pb-2 pt-10'>
+      <div
+        className='pointer-events-auto absolute inset-x-0 bottom-0 px-3 pb-2 pt-10'
+        onClick={handleControlsBackgroundClick}
+      >
         <div className='relative h-3'>
           {isOfflinePlayback && (
             <div className='pointer-events-none absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-emerald-400/80' />
