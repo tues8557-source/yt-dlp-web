@@ -1,6 +1,6 @@
 'use client';
 
-import type { ChangeEvent, MouseEvent, RefObject } from 'react';
+import type { ChangeEvent, MouseEvent, PointerEvent, RefObject } from 'react';
 import { Maximize2, Pause, Play, Repeat, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 
 import type { MediaCachedRange } from '@/client/mediaRangeCache';
@@ -9,6 +9,15 @@ import type { VideoRepeatMode } from '@/store/videoPlayer';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { formatDuration, getRepeatTitle } from '@/components/modules/video-player/utils';
+
+const controlButtonClass =
+  'select-none text-white transition-[background-color,transform,box-shadow,opacity] duration-150 ease-out [-webkit-tap-highlight-color:transparent] active:scale-95 active:bg-white/25 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-0 disabled:active:scale-100';
+const primaryControlButtonClass =
+  'bg-black/45 shadow-sm hover:bg-white/20 active:bg-white/30';
+const secondaryControlButtonClass =
+  'bg-black/35 shadow-sm hover:bg-white/20 disabled:opacity-40';
+const compactControlButtonClass =
+  'hover:bg-white/15 active:bg-white/25';
 
 type PlayerControlsProps = {
   controlsVisible: boolean;
@@ -23,7 +32,8 @@ type PlayerControlsProps = {
   isOfflinePlayback: boolean;
   cachedRanges: MediaCachedRange[];
   onClose: () => void;
-  onControlsBackgroundTap: () => void;
+  onControlsBackgroundPointerTap: (event: PointerEvent<HTMLDivElement>) => void;
+  onControlsBackgroundTap: (event: MouseEvent<HTMLDivElement>) => void;
   onFullscreen: () => void;
   onMute: () => void;
   onNext: () => void;
@@ -47,6 +57,7 @@ export function PlayerControls({
   isOfflinePlayback,
   cachedRanges,
   onClose,
+  onControlsBackgroundPointerTap,
   onControlsBackgroundTap,
   onFullscreen,
   onMute,
@@ -61,24 +72,41 @@ export function PlayerControls({
     if (!(event.target instanceof Element)) return;
     if (event.target.closest('button, input, a, [role="button"]')) return;
 
-    onControlsBackgroundTap();
+    event.preventDefault();
+    event.stopPropagation();
+    onControlsBackgroundTap(event);
+  };
+
+  const handleControlsBackgroundPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse') return;
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('button, input, a, [role="button"]')) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    onControlsBackgroundPointerTap(event);
   };
 
   return (
     <div
       className={cn(
-        'pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-black/80 via-black/35 to-transparent text-white transition-opacity duration-150',
-        controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        'absolute inset-0 z-30 bg-gradient-to-t from-black/80 via-black/35 to-transparent text-white opacity-0 transition-opacity duration-200 ease-out [-webkit-tap-highlight-color:transparent]',
+        controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       )}
+      onClick={handleControlsBackgroundClick}
+      onPointerUp={handleControlsBackgroundPointerUp}
     >
       <div
         className='pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-x-5 sm:gap-x-7'
-        onClick={handleControlsBackgroundClick}
       >
         <Button
           variant='ghost'
           size='icon'
-          className='h-12 w-12 rounded-full bg-black/35 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 sm:h-14 sm:w-14'
+          className={cn(
+            'h-12 w-12 rounded-full sm:h-14 sm:w-14',
+            controlButtonClass,
+            secondaryControlButtonClass
+          )}
           onClick={onPrevious}
           disabled={!canPlayAdjacent}
           title='Previous video'
@@ -88,7 +116,11 @@ export function PlayerControls({
         <Button
           variant='ghost'
           size='icon'
-          className='h-16 w-16 rounded-full bg-black/45 text-white hover:bg-white/20 hover:text-white sm:h-20 sm:w-20'
+          className={cn(
+            'h-16 w-16 rounded-full sm:h-20 sm:w-20',
+            controlButtonClass,
+            primaryControlButtonClass
+          )}
           onClick={onPlayPause}
           title={isPlaying ? 'Pause' : 'Play'}
         >
@@ -101,7 +133,11 @@ export function PlayerControls({
         <Button
           variant='ghost'
           size='icon'
-          className='h-12 w-12 rounded-full bg-black/35 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 sm:h-14 sm:w-14'
+          className={cn(
+            'h-12 w-12 rounded-full sm:h-14 sm:w-14',
+            controlButtonClass,
+            secondaryControlButtonClass
+          )}
           onClick={onNext}
           disabled={!canPlayAdjacent}
           title='Next video'
@@ -112,7 +148,6 @@ export function PlayerControls({
 
       <div
         className='pointer-events-auto absolute inset-x-0 bottom-0 px-3 pb-2 pt-10'
-        onClick={handleControlsBackgroundClick}
       >
         <div className='relative h-3'>
           {isOfflinePlayback && (
@@ -161,7 +196,7 @@ export function PlayerControls({
             <Button
               variant='ghost'
               size='icon'
-              className='relative h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              className={cn('relative h-9 w-9 rounded-full', controlButtonClass, compactControlButtonClass)}
               onClick={onRepeat}
               title={getRepeatTitle(repeatMode)}
             >
@@ -175,7 +210,7 @@ export function PlayerControls({
             <Button
               variant='ghost'
               size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              className={cn('h-9 w-9 rounded-full', controlButtonClass, compactControlButtonClass)}
               onClick={onMute}
               title={isMuted ? 'Unmute' : 'Mute'}
             >
@@ -193,7 +228,7 @@ export function PlayerControls({
             <Button
               variant='ghost'
               size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              className={cn('h-9 w-9 rounded-full', controlButtonClass, compactControlButtonClass)}
               onClick={onFullscreen}
               title='Full screen'
             >
@@ -202,7 +237,7 @@ export function PlayerControls({
             <Button
               variant='ghost'
               size='icon'
-              className='h-9 w-9 rounded-full text-white hover:bg-white/15 hover:text-white'
+              className={cn('h-9 w-9 rounded-full', controlButtonClass, compactControlButtonClass)}
               onClick={onClose}
               title='Close'
             >

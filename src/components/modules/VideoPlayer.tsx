@@ -105,6 +105,7 @@ export function VideoPlayer({
   const lastTapRef = useRef<{ time: number } | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
   const controlsVisibleRef = useRef(false);
+  const repeatModeRef = useRef(repeatMode);
   const suppressControlsUntilRef = useRef(0);
   const suppressHoverControlsUntilRef = useRef(0);
   const suppressClickUntilRef = useRef(0);
@@ -186,6 +187,10 @@ export function VideoPlayer({
   useEffect(() => {
     controlsVisibleRef.current = controlsVisible;
   }, [controlsVisible]);
+
+  useEffect(() => {
+    repeatModeRef.current = repeatMode;
+  }, [repeatMode]);
 
   useEffect(() => {
     setControlsVisible(false);
@@ -294,7 +299,7 @@ export function VideoPlayer({
     };
     const handleEnded = () => {
       setPlaying(false);
-      if (repeatMode === 'all') {
+      if (repeatModeRef.current === 'all') {
         playNextQueuedVideo();
       }
     };
@@ -403,9 +408,9 @@ export function VideoPlayer({
         videoEl.removeEventListener('ended', handleEnded);
       }
     };
-    // Event listeners are intentionally rebound when the selected video or repeat mode changes.
+    // Event listeners are intentionally rebound when the selected media changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoInfo, repeatMode, playbackUrl]);
+  }, [videoInfo, playbackUrl]);
 
   useEffect(() => {
     const videoEl = videoRef.current;
@@ -756,7 +761,7 @@ export function VideoPlayer({
     await handlePlayerTap(getTapSide(event));
   };
 
-  const handleTapZoneClick = (side: TapSide) => async (event: MouseEvent<HTMLButtonElement>) => {
+  const handleTapZoneClick = (side: TapSide) => async (event: MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
     if (Date.now() < suppressClickUntilRef.current) return;
@@ -778,13 +783,24 @@ export function VideoPlayer({
     await handlePlayerPointerTap(getTapSide(event));
   };
 
-  const handleTapZonePointerUp = (side: TapSide) => async (event: PointerEvent<HTMLButtonElement>) => {
+  const handleTapZonePointerUp = (side: TapSide) => async (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse') return;
 
     event.preventDefault();
     event.stopPropagation();
     restorePlaybackRate();
     await handlePlayerPointerTap(side);
+  };
+
+  const handleControlsBackgroundTap = async (event: MouseEvent<HTMLDivElement>) => {
+    if (Date.now() < suppressClickUntilRef.current) return;
+
+    await handlePlayerTap(getTapSide(event));
+  };
+
+  const handleControlsBackgroundPointerTap = async (event: PointerEvent<HTMLDivElement>) => {
+    restorePlaybackRate();
+    await handlePlayerPointerTap(getTapSide(event));
   };
 
   const handlePlayerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -1404,19 +1420,17 @@ export function VideoPlayer({
       )}
       {!isAudioOnly && (
         <div className='pointer-events-none absolute inset-0 z-10 flex'>
-          <button
-            type='button'
-            aria-label='Back 10 seconds'
+          <div
+            aria-hidden='true'
             data-player-tap-zone='true'
-            className='pointer-events-auto h-full flex-1 cursor-default bg-transparent outline-none'
+            className='pointer-events-auto h-full flex-1 cursor-default select-none bg-transparent outline-none [touch-action:manipulation] [-webkit-tap-highlight-color:transparent]'
             onPointerUp={handleTapZonePointerUp('left')}
             onClick={handleTapZoneClick('left')}
           />
-          <button
-            type='button'
-            aria-label='Forward 10 seconds'
+          <div
+            aria-hidden='true'
             data-player-tap-zone='true'
-            className='pointer-events-auto h-full flex-1 cursor-default bg-transparent outline-none'
+            className='pointer-events-auto h-full flex-1 cursor-default select-none bg-transparent outline-none [touch-action:manipulation] [-webkit-tap-highlight-color:transparent]'
             onPointerUp={handleTapZonePointerUp('right')}
             onClick={handleTapZoneClick('right')}
           />
@@ -1505,7 +1519,8 @@ export function VideoPlayer({
         onPrevious={playPreviousQueuedVideo}
         onProgress={handleProgressChange}
         onRepeat={handleClickRepeatButton}
-        onControlsBackgroundTap={handleHideControls}
+        onControlsBackgroundPointerTap={handleControlsBackgroundPointerTap}
+        onControlsBackgroundTap={handleControlsBackgroundTap}
         onVolume={handleVolumeChange}
         canPlayAdjacent={hasRepeatQueue}
         isOfflinePlayback={isOfflinePlayback}
