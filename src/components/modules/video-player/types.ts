@@ -49,7 +49,6 @@ export type VideoPlayerVideoInfo = {
   variants?: VideoPlayerFileVariant[];
   queueTitle?: string | null;
   queue?: VideoPlayerQueueItem[];
-  offlineKey?: string;
 };
 
 export type VideoPlayerProps = {

@@ -217,12 +217,6 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
     setSearch(newSearch);
   };
 
-  const handleBlurSearchInput = () => {
-    if (search) return;
-
-    setMobileSearchOpen(false);
-  };
-
   const handleClickClearSearchButton = () => {
     setSearch('');
     setMobileSearchOpen(false);
@@ -241,7 +235,12 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
     >
       <div className='w-full flex items-center gap-2'>
         {!isSelectMode && (
-          <div className='flex shrink-0 overflow-hidden rounded-full border bg-background text-xs font-medium'>
+          <div
+            className={cn(
+              'shrink-0 overflow-hidden rounded-full border bg-background text-xs font-medium',
+              isSearchExpanded ? 'hidden lg:flex' : 'flex'
+            )}
+          >
             <Button
               type='button'
               variant={viewMode === 'all' ? 'default' : 'ghost'}
@@ -281,9 +280,9 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         ) : null}
         <div
           className={cn(
-            'ml-auto flex shrink-0 items-center justify-end overflow-hidden rounded-full bg-background shadow-sm transition-[width,height] duration-200 ease-out lg:static lg:h-8 lg:min-w-0 lg:flex-1 lg:px-0',
+            'ml-auto flex shrink-0 items-center justify-end overflow-hidden rounded-full bg-background shadow-sm transition-[width,height] duration-200 ease-out lg:h-8 lg:min-w-0 lg:flex-1 lg:px-0',
             isSearchExpanded
-              ? 'absolute -inset-x-2 -inset-y-1 z-50 h-10 border lg:inset-x-auto lg:inset-y-0 lg:h-8 lg:border-0'
+              ? 'h-10 min-w-0 flex-1 border lg:h-8 lg:border-0'
               : 'h-8 w-8 lg:w-auto'
           )}
         >
@@ -297,9 +296,8 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
             value={search}
             placeholder='Search title, filename'
             onChange={handleChangeSearchValue}
-            onBlur={handleBlurSearchInput}
           />
-          {search ? (
+          {isSearchExpanded ? (
             <Button
               key={'clear-search'}
               type='button'
@@ -371,7 +369,14 @@ export const VideoListHeader: React.FC<VideoListHeaderProps> = ({
         )} */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon' className='shrink-0 text-2xl rounded-full'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className={cn(
+                'shrink-0 text-2xl rounded-full',
+                isSearchExpanded ? 'hidden lg:inline-flex' : 'inline-flex'
+              )}
+            >
               <BiDotsVerticalRounded />
             </Button>
           </DropdownMenuTrigger>

@@ -1,9 +1,8 @@
 import { memo } from 'react';
 import numeral from 'numeral';
-import { CheckCircle2, HardDriveDownload, LinkIcon, Trash2 } from 'lucide-react';
+import { LinkIcon } from 'lucide-react';
 import { AiOutlineCloudDownload } from 'react-icons/ai';
 import { FaPlay } from 'react-icons/fa6';
-import { toast } from 'react-toastify';
 
 import type { VideoInfo } from '@/types/video';
 
@@ -12,19 +11,10 @@ import { useVideoPlayerStore } from '@/store/videoPlayer';
 import { Divider } from '@/components/Divider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { useOfflineMedia } from '@/client/useOfflineMedia';
 
 export type PlaylistViewerProps = { open: boolean; video: VideoInfo; onClose: () => void };
 
 export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProps) => {
-  const {
-    deleteOffline,
-    getKey: getOfflineKey,
-    isAvailable: isOfflineAvailable,
-    itemMap: offlineItemMap,
-    progressMap: offlineProgressMap,
-    saveOffline
-  } = useOfflineMedia();
   const handleEventStopPropagation = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation();
   };
@@ -36,7 +26,6 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
   };
 
   const handleClickPlayVideo = (playlistVideo: VideoInfo['playlist'][number]) => () => {
-    const offlineKey = getOfflineKey(video.uuid, playlistVideo.uuid);
     useVideoPlayerStore.getState().open({
       uuid: video.uuid,
       size: playlistVideo.size,
@@ -57,35 +46,8 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
       rFrameRate: playlistVideo.rFrameRate,
       codecName: playlistVideo.codecName,
       colorPrimaries: playlistVideo.colorPrimaries,
-      containerName: playlistVideo.containerName,
-      offlineKey: offlineItemMap[offlineKey] ? offlineKey : undefined
+      containerName: playlistVideo.containerName
     });
-  };
-
-  const handleClickSaveOffline =
-    (playlistVideo: VideoInfo['playlist'][number]) => async (event: React.MouseEvent<HTMLElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!playlistVideo?.uuid) return;
-
-      try {
-        await saveOffline(video, playlistVideo);
-        toast.success('Saved for offline playback.');
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to save offline.');
-      }
-    };
-
-  const handleClickDeleteOffline = (key: string) => async (event: React.MouseEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    try {
-      await deleteOffline(key);
-      toast.success('Removed offline copy.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to remove offline copy.');
-    }
   };
 
   return (
@@ -110,12 +72,6 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
           <Divider className='shrink-0 mt-0 mb-2' />
           <div className='flex flex-col flex-auto gap-y-1 overflow-y-auto'>
             {video.playlist.map((item, i) => {
-              const offlineKey = item?.uuid ? getOfflineKey(video.uuid, item.uuid) : '';
-              const offlineItem = offlineKey ? offlineItemMap[offlineKey] : null;
-              const offlineProgress = offlineKey ? offlineProgressMap[offlineKey] : null;
-              const isOfflineSaved = Boolean(offlineItem);
-              const isOfflineSaving = Boolean(offlineProgress && offlineProgress.progress < 1);
-
               if (!item) {
                 return (
                   <div
@@ -156,13 +112,7 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
                           title={item.name || ''}
                           onClick={handleClickPlayVideo(item)}
                         >
-                          {isOfflineSaved && <CheckCircle2 className='h-3.5 w-3.5 shrink-0 text-emerald-500' />}
                           {item.name}
-                          {isOfflineSaving && (
-                            <span className='text-xs text-muted-foreground'>
-                              {Math.round((offlineProgress?.progress || 0) * 100)}%
-                            </span>
-                          )}
                         </span>
                       )}
                     </div>
@@ -197,7 +147,7 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
                     </Button>
                     <Button
                       size='sm'
-                      className='p-0 h-[1.5em] text-lg rounded-none'
+                      className='p-0 h-[1.5em] text-lg rounded-xl rounded-l-none'
                       disabled={Boolean(
                         item?.error || !item.uuid || !item.path || !item.size || item.isLive
                       )}
@@ -216,34 +166,6 @@ export const PlaylistViewer = memo(({ open, video, onClose }: PlaylistViewerProp
                       >
                         <AiOutlineCloudDownload />
                       </a>
-                    </Button>
-                    <Button
-                      size='sm'
-                      className={cn(
-                        'h-[1.5em] rounded-xl rounded-l-none px-3 text-lg',
-                        isOfflineSaved
-                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                      )}
-                      disabled={Boolean(
-                        !isOfflineAvailable ||
-                          isOfflineSaving ||
-                          item?.error ||
-                          !item.uuid ||
-                          !item.path ||
-                          !item.size ||
-                          item.isLive
-                      )}
-                      onClick={
-                        isOfflineSaved ? handleClickDeleteOffline(offlineKey) : handleClickSaveOffline(item)
-                      }
-                      title={isOfflineSaved ? 'Remove offline copy' : 'Save offline'}
-                    >
-                      {isOfflineSaved ? (
-                        <Trash2 className='h-3.5 w-3.5' />
-                      ) : (
-                        <HardDriveDownload className='h-3.5 w-3.5' />
-                      )}
                     </Button>
                   </div>
                 </div>

@@ -1,12 +1,18 @@
 const RANGE_CACHE_NAME = 'yt-dlp-web-range-cache-v1';
 const RANGE_CACHE_PATH = '/__yt_dlp_range_cache__';
+const LEGACY_OFFLINE_MEDIA_CACHE_NAME = 'yt-dlp-web-offline-media-v1';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .delete(LEGACY_OFFLINE_MEDIA_CACHE_NAME)
+      .catch(() => {})
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -15,6 +21,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
   if (!['/api/file', '/api/playlist/file'].includes(url.pathname)) return;
   if (url.searchParams.get('download') === 'true') return;
 

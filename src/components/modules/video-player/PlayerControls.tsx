@@ -29,7 +29,6 @@ type PlayerControlsProps = {
   repeatMode: VideoRepeatMode;
   volume: number;
   canPlayAdjacent: boolean;
-  isOfflinePlayback: boolean;
   cachedRanges: MediaCachedRange[];
   onClose: () => void;
   onControlsBackgroundPointerTap: (event: PointerEvent<HTMLDivElement>) => void;
@@ -54,7 +53,6 @@ export function PlayerControls({
   repeatMode,
   volume,
   canPlayAdjacent,
-  isOfflinePlayback,
   cachedRanges,
   onClose,
   onControlsBackgroundPointerTap,
@@ -150,25 +148,21 @@ export function PlayerControls({
         className='pointer-events-auto absolute inset-x-0 bottom-0 px-3 pb-2 pt-10'
       >
         <div className='relative h-3'>
-          {isOfflinePlayback && (
-            <div className='pointer-events-none absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-emerald-400/80' />
-          )}
-          {!isOfflinePlayback &&
-            cachedRanges.map((range) => {
-              const total = range.total || duration || 0;
-              if (!total || range.end <= range.start) return null;
+          {cachedRanges.map((range) => {
+            const total = range.total || duration || 0;
+            if (!total || range.end <= range.start) return null;
 
-              const left = Math.min(Math.max((range.start / total) * 100, 0), 100);
-              const width = Math.min(Math.max(((range.end - range.start + 1) / total) * 100, 0), 100 - left);
+            const left = Math.min(Math.max((range.start / total) * 100, 0), 100);
+            const width = Math.min(Math.max(((range.end - range.start + 1) / total) * 100, 0), 100 - left);
 
-              return (
-                <div
-                  key={`${range.start}-${range.end}`}
-                  className='pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-sky-400/75'
-                  style={{ left: `${left}%`, width: `${width}%` }}
-                />
-              );
-            })}
+            return (
+              <div
+                key={`${range.start}-${range.end}`}
+                className='pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-sky-400/75'
+                style={{ left: `${left}%`, width: `${width}%` }}
+              />
+            );
+          })}
           <input
             ref={progressRef}
             type='range'
@@ -186,9 +180,9 @@ export function PlayerControls({
             <div className='w-[5.75rem] shrink-0 text-xs tabular-nums text-white/90 sm:w-auto'>
               {formatDuration(currentTime)} / {formatDuration(duration)}
             </div>
-            {(isOfflinePlayback || cachedRanges.length > 0) && (
-              <span className='hidden rounded-full bg-emerald-500/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black sm:inline-flex'>
-                {isOfflinePlayback ? 'Offline' : 'Cached'}
+            {cachedRanges.length > 0 && (
+              <span className='hidden rounded-full bg-sky-400/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black sm:inline-flex'>
+                Cached
               </span>
             )}
           </div>

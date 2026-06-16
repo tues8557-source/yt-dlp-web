@@ -15,12 +15,14 @@ type MediaCachedRangeWithSource = MediaCachedRange & {
 const RANGE_CACHE_NAME = 'yt-dlp-web-range-cache-v1';
 const RANGE_CACHE_PATH = '/__yt_dlp_range_cache__';
 const RANGE_CACHE_INDEX_TTL = 2000;
+const LEGACY_OFFLINE_MEDIA_CACHE_NAME = 'yt-dlp-web-offline-media-v1';
+const LEGACY_OFFLINE_MEDIA_DB_NAME = 'yt-dlp-web-offline-media';
 
 let rangeIndex: MediaCachedRangeWithSource[] = [];
 let rangeIndexLoadedAt = 0;
 let rangeIndexPromise: Promise<MediaCachedRangeWithSource[]> | null = null;
 
-export async function registerOfflineMediaWorker() {
+export async function registerMediaRangeCacheWorker() {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
     return;
   }
@@ -28,6 +30,8 @@ export async function registerOfflineMediaWorker() {
   try {
     await navigator.serviceWorker.register('/offline-media-sw.js');
   } catch (e) {}
+
+  await cleanupLegacyOfflineMediaStorage();
 }
 
 export function getRangeCacheSource(pathOrUrl: string) {
@@ -149,4 +153,18 @@ function mergeRanges(ranges: MediaCachedRange[]) {
   }
 
   return merged;
+}
+
+async function cleanupLegacyOfflineMediaStorage() {
+  try {
+    if (typeof caches !== 'undefined') {
+      await caches.delete(LEGACY_OFFLINE_MEDIA_CACHE_NAME);
+    }
+  } catch (e) {}
+
+  try {
+    if (typeof indexedDB !== 'undefined') {
+      indexedDB.deleteDatabase(LEGACY_OFFLINE_MEDIA_DB_NAME);
+    }
+  } catch (e) {}
 }
