@@ -9,8 +9,8 @@ ghcr.io/tues8557-source/yt-dlp-web:latest
 ```
 
 ## Preview
+<img width="2285" height="2658" alt="2026-06-17_094502" src="https://github.com/user-attachments/assets/8d48a195-2668-4a08-9473-92d8bca5bc30" />
 
-![Mobile preview](readme_images/2026-06-17_094502.jpg)
 
 ## Features
 
