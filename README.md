@@ -12,7 +12,7 @@ ghcr.io/tues8557-source/yt-dlp-web:latest
 
 | Mobile | Desktop |
 | --- | --- |
-| ![Mobile preview](public/preview-mobile.svg) | ![Desktop preview](public/preview-desktop.svg) |
+| ![Mobile preview](readme_images/2026-06-17_094502.jpg) | ![Desktop preview](public/preview-desktop.svg) |
 
 ## Features
 
