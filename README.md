@@ -2,9 +2,10 @@
 
 Self-hosted [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a web UI for downloading, browsing, streaming, and managing videos on a remote server.
 
-This fork publishes Docker images to GitHub Container Registry:
+Docker images are available from Docker Hub and GitHub Container Registry:
 
 ```text
+tues8557/yt-dlp-web:latest
 ghcr.io/tues8557-source/yt-dlp-web:latest
 ```
 
@@ -30,23 +31,25 @@ Create a `docker-compose.yml` file:
 ```yaml
 services:
   yt-dlp-web:
-    image: ghcr.io/tues8557-source/yt-dlp-web:latest
-    pull_policy: always
+    image: tues8557/yt-dlp-web:latest
     container_name: yt-dlp
-    user: 1026:100 # User Id, Group Id Setting
+    pull_policy: always
+    user: "1026:100" # Change to the Synology user's UID:GID
     environment:
-    #   If you need to protect the site, set AUTH_SECRET, CREDENTIAL_USERNAME, CREDENTIAL_PASSWORD.
-    #   ex)
-       AUTH_SECRET: "use random API Key generator"
-       CREDENTIAL_USERNAME: "your id"
-       CREDENTIAL_PASSWORD: "your password"
-       API_TOKEN: "use random API Key generator"
+      - TZ=Asia/Seoul
+      # Uncomment all three credential variables to enable web authentication.
+      # - AUTH_SECRET=random string of at least 40 characters
+      # - CREDENTIAL_USERNAME=your username
+      # - CREDENTIAL_PASSWORD=your strong password
+      # - API_TOKEN=random string for the optional automation API
     volumes:
-      - /volume1/docker/yt/downloads:/downloads # Downloads folder, this is example (downloaded media files)
-      - /volume1/docker/yt/cache:/cache         # Cache folder, this is example (app cache, download list, cookies, local thumbnails)
+      - /volume1/docker/yt-dlp-web/downloads:/downloads
+      - /volume1/docker/yt-dlp-web/cache:/cache
     ports:
-      - 3000:3000 # Web Page Port Mapping
+      - "3000:3000"
+    init: true
     restart: unless-stopped
+    stop_grace_period: 1m
 ```
 
 Start it:
@@ -128,9 +131,9 @@ Authentication is disabled unless all three credential variables are set.
 
 ```yaml
 environment:
-  AUTH_SECRET: "Random_string_40_or_more_characters_recommended"
-  CREDENTIAL_USERNAME: "username"
-  CREDENTIAL_PASSWORD: "password"
+  - AUTH_SECRET=Random_string_40_or_more_characters_recommended
+  - CREDENTIAL_USERNAME=username
+  - CREDENTIAL_PASSWORD=password
 ```
 
 When authentication is enabled, the web UI requires sign-in.
@@ -141,10 +144,10 @@ Set `API_TOKEN` to let trusted tools start downloads without opening the browser
 
 ```yaml
 environment:
-  AUTH_SECRET: "Random_string_40_or_more_characters_recommended"
-  CREDENTIAL_USERNAME: "username"
-  CREDENTIAL_PASSWORD: "password"
-  API_TOKEN: "Random_string_for_automation_download_api"
+  - AUTH_SECRET=Random_string_40_or_more_characters_recommended
+  - CREDENTIAL_USERNAME=username
+  - CREDENTIAL_PASSWORD=password
+  - API_TOKEN=Random_string_for_automation_download_api
 ```
 
 Example:
@@ -198,19 +201,29 @@ https://www.icloud.com/shortcuts/8b038411c518474bbfe566f9fbe1e046
 
 ## Updating yt-dlp
 
-The container downloads a fresh yt-dlp binary at startup. You can override the download URL:
+The container downloads a fresh yt-dlp binary at startup. It also enables the bundled Node.js
+runtime for yt-dlp's YouTube JavaScript challenge solver. You can override the download URL:
 
 ```yaml
 environment:
-  YT_DLP_DOWNLOAD_URL: "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+  - YT_DLP_DOWNLOAD_URL=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
 ```
 
 You can also update manually inside a running container:
 
 ```bash
-docker exec -u 0 -it yt-dlp-web /tmp/yt-dlp-bin/yt-dlp --update-to nightly
-docker exec -u 0 -it yt-dlp-web /tmp/yt-dlp-bin/yt-dlp --update-to stable@2024.08.06
+docker exec -u 0 -it yt-dlp /tmp/yt-dlp-bin/yt-dlp --update-to nightly
+docker exec -u 0 -it yt-dlp /tmp/yt-dlp-bin/yt-dlp --update-to stable@2026.08.19
 ```
+
+Check the active yt-dlp and JavaScript runtime configuration with:
+
+```bash
+docker exec -it yt-dlp yt-dlp --verbose --simulate "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+The debug output should list `node` under `JS runtimes`. If your container predates the Node 22 image,
+pull and recreate it instead of updating only the yt-dlp binary.
 
 ## Development
 

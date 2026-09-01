@@ -45,6 +45,10 @@ RUN apk add --no-cache ca-certificates ffmpeg python3 py3-mutagen
 RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp && \
   chmod a+rx /usr/local/bin/yt-dlp
 
+# YouTube extraction requires an explicitly enabled JavaScript runtime.
+# The base image already provides a supported Node.js version.
+COPY yt-dlp.conf /etc/yt-dlp.conf
+
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
 # Use environment variables in the addgroup and adduser commands

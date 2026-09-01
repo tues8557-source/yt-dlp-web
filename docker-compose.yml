@@ -1,19 +1,29 @@
 services:
   yt-dlp-web:
-    image: ghcr.io/tues8557-source/yt-dlp-web:latest
-    pull_policy: always
+    image: tues8557/yt-dlp-web:latest
     container_name: yt-dlp
-    user: 1026:100 # User Id, Group Id Setting
+    pull_policy: always
+
+    # Synology user UID:GID. Change this for your NAS account.
+    # Check it over SSH with: id <username>
+    user: "1026:100"
+
     environment:
-    #   If you need to protect the site, set AUTH_SECRET, CREDENTIAL_USERNAME, CREDENTIAL_PASSWORD.
-    #   ex)
-       AUTH_SECRET: "use random API Key generator"
-       CREDENTIAL_USERNAME: "your id"
-       CREDENTIAL_PASSWORD: "your password"
-       API_TOKEN: "use random API Key generator"
-    volumes:
-      - /volume1/docker/yt/downloads:/downloads # Downloads folder, this is example
-      - /volume1/docker/yt/cache:/cache         # Cache folder, this is example
+      - TZ=Asia/Seoul
+
+      # Uncomment and replace these values to enable web authentication.
+      # - AUTH_SECRET=random string of at least 40 characters
+      # - CREDENTIAL_USERNAME=your username
+      # - CREDENTIAL_PASSWORD=your strong password
+      # - API_TOKEN=random string for the automation API
+
     ports:
-      - 3000:3000 # Web Page Port Mapping
+      - "3000:3000"
+
+    volumes:
+      - /volume1/docker/yt-dlp-web/downloads:/downloads
+      - /volume1/docker/yt-dlp-web/cache:/cache
+
+    init: true
     restart: unless-stopped
+    stop_grace_period: 1m
