@@ -2,11 +2,10 @@
 
 Self-hosted [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a web UI for downloading, browsing, streaming, and managing videos on a remote server.
 
-Docker images are available from Docker Hub and GitHub Container Registry:
+The Docker image is available from Docker Hub:
 
 ```text
 tues8557/yt-dlp-web:latest
-ghcr.io/tues8557-source/yt-dlp-web:latest
 ```
 
 ## Preview
